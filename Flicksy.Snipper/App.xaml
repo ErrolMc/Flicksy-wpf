@@ -1,8 +1,7 @@
 ﻿<Application x:Class="Flicksy.Snipper.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:Flicksy.Snipper"
-             StartupUri="MainWindow.xaml">
+             xmlns:local="clr-namespace:Flicksy.Snipper">
     <Application.Resources>
          
     </Application.Resources>

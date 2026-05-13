@@ -1,0 +1,84 @@
+<Window x:Class="Flicksy.Snipper.Overlays.PreSnipOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Cursor="Cross"
+        Focusable="True"
+        KeyDown="OnWindowKeyDown"
+        MouseLeftButtonDown="OnMouseLeftButtonDown"
+        MouseMove="OnMouseMove"
+        MouseLeftButtonUp="OnMouseLeftButtonUp">
+    <Grid>
+        <Image x:Name="BackgroundImage" Stretch="Fill" />
+
+        <Canvas x:Name="OverlayCanvas" Background="Transparent">
+            <Rectangle x:Name="TopShade" Fill="#70000000" />
+            <Rectangle x:Name="LeftShade" Fill="#70000000" />
+            <Rectangle x:Name="RightShade" Fill="#70000000" />
+            <Rectangle x:Name="BottomShade" Fill="#70000000" />
+            <Rectangle x:Name="SelectionBorder"
+                       Fill="Transparent"
+                       Stroke="White"
+                       StrokeThickness="2"
+                       Visibility="Collapsed" />
+        </Canvas>
+
+        <Border x:Name="MenuBorder"
+                Panel.ZIndex="10"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="0,12,0,0"
+                Padding="12,10,16,10"
+                Background="#545454"
+                BorderBrush="#DCDCDC"
+                BorderThickness="2"
+                CornerRadius="14"
+                Cursor="Arrow">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="SnipModeButton"
+                        Grid.Column="0"
+                        Width="34"
+                        Height="34"
+                        Margin="0,0,6,0"
+                        Foreground="White"
+                        ToolTip="Snip mode"
+                        Click="OnSnipModeClick">
+                    <Image Width="20"
+                           Height="20"
+                           Stretch="Uniform"
+                           Source="pack://application:,,,/Resources/camera-icon.png" />
+                </Button>
+                <Button x:Name="RecordModeButton"
+                        Grid.Column="1"
+                        Width="34"
+                        Height="34"
+                        Foreground="White"
+                        ToolTip="Record mode"
+                        Click="OnRecordModeClick">
+                    <Image Width="20"
+                           Height="20"
+                           Stretch="Uniform"
+                           Source="pack://application:,,,/Resources/camcorder-icon.png" />
+                </Button>
+                <TextBlock x:Name="InstructionText"
+                           Grid.Column="3"
+                           VerticalAlignment="Center"
+                           Foreground="White"
+                           FontSize="14"
+                           Text="Click and drag an area to snip" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

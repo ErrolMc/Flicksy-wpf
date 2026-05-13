@@ -1,12 +1,21 @@
-﻿using System.Configuration;
-using System.Data;
-using System.Windows;
-
 namespace Flicksy.Snipper;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
+    private SnipperSessionController? _sessionController;
+
+    protected override void OnStartup(System.Windows.StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+        _sessionController = new SnipperSessionController(this);
+        _sessionController.Start();
+    }
+
+    protected override void OnExit(System.Windows.ExitEventArgs e)
+    {
+        _sessionController?.Dispose();
+        base.OnExit(e);
+    }
 }
