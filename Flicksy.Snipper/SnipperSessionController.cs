@@ -77,14 +77,17 @@ internal sealed class SnipperSessionController : IDisposable
         overlay.Activate();
     }
 
-    private static void OnSnipCaptured(Bitmap snipBitmap)
+    private void OnSnipCaptured(Bitmap snipBitmap)
     {
+        string? snipPath = null;
         try
         {
-            var snipPath = Path.Combine(Path.GetTempPath(), $"flicksy-snip-{Guid.NewGuid():N}.png");
+            snipPath = Path.Combine(Path.GetTempPath(), $"flicksy-snip-{Guid.NewGuid():N}.png");
             snipBitmap.Save(snipPath, ImageFormat.Png);
             using var clipboardImage = new Bitmap(snipBitmap);
             System.Windows.Forms.Clipboard.SetImage(clipboardImage);
+
+            LaunchEditorWithMedia(snipPath);
         }
         catch (ExternalException ex)
         {
@@ -104,25 +107,63 @@ internal sealed class SnipperSessionController : IDisposable
         }
     }
 
-    private static void OnRecordingCompleted(string path)
+    private void OnRecordingCompleted(string path)
     {
+        LaunchEditorWithMedia(path);
+    }
+
+    private void LaunchEditorWithMedia(string mediaPath)
+    {
+        var editorPath = ResolveEditorExecutablePath();
+        if (string.IsNullOrWhiteSpace(editorPath))
+        {
+            System.Windows.MessageBox.Show(
+                $"Flicksy.Editor.exe was not found. Build Flicksy.Editor first.\n\nSaved media:\n{mediaPath}",
+                "Flicksy Snipper",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
         try
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = "explorer.exe",
-                Arguments = $"/select,\"{path}\"",
+                FileName = editorPath,
+                Arguments = $"\"{mediaPath}\"",
+                WorkingDirectory = Path.GetDirectoryName(editorPath),
                 UseShellExecute = true
             });
         }
-        catch (InvalidOperationException ex)
-        {
-            System.Windows.MessageBox.Show($"Recording completed at:\n{path}\n\n{ex.Message}", "Flicksy Snipper", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            System.Windows.MessageBox.Show($"Recording completed at:\n{path}\n\n{ex.Message}", "Flicksy Snipper", MessageBoxButton.OK, MessageBoxImage.Information);
+            System.Windows.MessageBox.Show(
+                $"Unable to start Flicksy.Editor:\n{ex.Message}\n\nSaved media:\n{mediaPath}",
+                "Flicksy Snipper",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
+        catch (InvalidOperationException ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"Unable to start Flicksy.Editor:\n{ex.Message}\n\nSaved media:\n{mediaPath}",
+                "Flicksy Snipper",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    private static string? ResolveEditorExecutablePath()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDirectory, "Flicksy.Editor.exe"),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Editor", "bin", "Debug", "net10.0-windows", "Flicksy.Editor.exe")),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Editor", "bin", "Release", "net10.0-windows", "Flicksy.Editor.exe"))
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
     }
 
     private void TryShutdownWhenIdle()

@@ -102,7 +102,10 @@ public partial class PreSnipOverlayWindow : Window
         }
 
         var current = ClampToCanvas(e.GetPosition(OverlayCanvas));
-        _selectionRect = CreateRect(_selectionStart, current);
+        var rawSelection = CreateRect(_selectionStart, current);
+        _selectionRect = _isSnipMode
+            ? rawSelection
+            : NormalizeRecordingSelectionRect(rawSelection);
         UpdateSelectionVisuals();
     }
 
@@ -199,13 +202,46 @@ public partial class PreSnipOverlayWindow : Window
 
     private DrawingRectangle GetSelectionRectangle()
     {
+        return GetClampedSelectionRectangle(useCeilingForSize: _isSnipMode, requireEvenSize: !_isSnipMode);
+    }
+
+    private DrawingRectangle GetClampedSelectionRectangle(bool useCeilingForSize, bool requireEvenSize)
+    {
         var maxWidth = _backgroundBitmap.Width;
         var maxHeight = _backgroundBitmap.Height;
         var x = Math.Clamp((int)Math.Floor(_selectionRect.X), 0, Math.Max(maxWidth - 1, 0));
         var y = Math.Clamp((int)Math.Floor(_selectionRect.Y), 0, Math.Max(maxHeight - 1, 0));
-        var width = Math.Clamp((int)Math.Ceiling(_selectionRect.Width), 0, maxWidth - x);
-        var height = Math.Clamp((int)Math.Ceiling(_selectionRect.Height), 0, maxHeight - y);
+
+        var rawWidth = useCeilingForSize
+            ? (int)Math.Ceiling(_selectionRect.Width)
+            : (int)Math.Floor(_selectionRect.Width);
+        var rawHeight = useCeilingForSize
+            ? (int)Math.Ceiling(_selectionRect.Height)
+            : (int)Math.Floor(_selectionRect.Height);
+
+        var width = Math.Clamp(rawWidth, 0, maxWidth - x);
+        var height = Math.Clamp(rawHeight, 0, maxHeight - y);
+
+        if (requireEvenSize)
+        {
+            width &= ~1;
+            height &= ~1;
+        }
+
         return new DrawingRectangle(x, y, width, height);
+    }
+
+    private static Rect NormalizeRecordingSelectionRect(Rect rect)
+    {
+        var x = Math.Floor(rect.X);
+        var y = Math.Floor(rect.Y);
+        var width = Math.Floor(rect.Width);
+        var height = Math.Floor(rect.Height);
+
+        width = Math.Max(0, width - (width % 2));
+        height = Math.Max(0, height - (height % 2));
+
+        return new Rect(x, y, width, height);
     }
 
     private static bool IsInsideMenu(object? source)

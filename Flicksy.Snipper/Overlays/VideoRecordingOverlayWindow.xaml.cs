@@ -1,7 +1,9 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using DrawingRectangle = System.Drawing.Rectangle;
@@ -49,6 +51,7 @@ public partial class VideoRecordingOverlayWindow : Window
             Focus();
             LayoutSelectionBorder();
         };
+        SourceInitialized += (_, _) => TryExcludeWindowFromCapture();
         SizeChanged += (_, _) => LayoutSelectionBorder();
     }
 
@@ -128,4 +131,20 @@ public partial class VideoRecordingOverlayWindow : Window
         var elapsed = DateTime.UtcNow - _recordingStartedUtc;
         TimerText.Text = $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
     }
+
+    private void TryExcludeWindowFromCapture()
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        _ = SetWindowDisplayAffinity(handle, WDA_EXCLUDEFROMCAPTURE);
+    }
+
+    private const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
 }
