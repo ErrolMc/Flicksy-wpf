@@ -1,0 +1,94 @@
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace Flicksy.Agent;
+
+internal sealed class AgentApplicationContext : ApplicationContext
+{
+    private readonly NotifyIcon _notifyIcon;
+    private readonly HotKeyWindow _hotKeyWindow;
+
+    public AgentApplicationContext()
+    {
+        _hotKeyWindow = new HotKeyWindow(LaunchSnipper);
+
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("Open Snipper", null, (_, _) => LaunchSnipper());
+        menu.Items.Add("Exit", null, (_, _) => ExitThread());
+
+        _notifyIcon = new NotifyIcon
+        {
+            Icon = SystemIcons.Application,
+            Visible = true,
+            Text = "Flicksy Agent",
+            ContextMenuStrip = menu
+        };
+
+        _notifyIcon.DoubleClick += (_, _) => LaunchSnipper();
+        _notifyIcon.ShowBalloonTip(
+            timeout: 3000,
+            tipTitle: "Flicksy Agent",
+            tipText: "Listening for Ctrl+Shift+Alt+S to open Flicksy.Snipper.",
+            tipIcon: ToolTipIcon.Info);
+    }
+
+    protected override void ExitThreadCore()
+    {
+        _notifyIcon.Visible = false;
+        _notifyIcon.Dispose();
+        _hotKeyWindow.Dispose();
+        base.ExitThreadCore();
+    }
+
+    private void LaunchSnipper()
+    {
+        var snipperPath = ResolveSnipperExecutablePath();
+        if (string.IsNullOrWhiteSpace(snipperPath))
+        {
+            ShowNotification("Flicksy.Snipper.exe was not found. Build Flicksy.Snipper first.");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = snipperPath,
+                WorkingDirectory = Path.GetDirectoryName(snipperPath),
+                UseShellExecute = true
+            });
+        }
+        catch (Win32Exception ex)
+        {
+            ShowNotification($"Unable to start Flicksy.Snipper: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            ShowNotification($"Unable to start Flicksy.Snipper: {ex.Message}");
+        }
+    }
+
+    private static string? ResolveSnipperExecutablePath()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDirectory, "Flicksy.Snipper.exe"),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Snipper", "bin", "Debug", "net10.0-windows", "Flicksy.Snipper.exe")),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Snipper", "bin", "Release", "net10.0-windows", "Flicksy.Snipper.exe"))
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private void ShowNotification(string message)
+    {
+        _notifyIcon.ShowBalloonTip(
+            timeout: 3000,
+            tipTitle: "Flicksy Agent",
+            tipText: message,
+            tipIcon: ToolTipIcon.Warning);
+    }
+}
