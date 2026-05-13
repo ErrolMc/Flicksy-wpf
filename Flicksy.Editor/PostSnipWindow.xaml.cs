@@ -14,6 +14,7 @@ public partial class PostSnipWindow : Window
     public PostSnipWindow()
     {
         InitializeComponent();
+        PlaybackOverlay.AttachMediaElement(PreviewVideo);
     }
 
     public void LoadImage(string imagePath)
@@ -43,6 +44,9 @@ public partial class PostSnipWindow : Window
         PreviewVideo.Source = null;
         PreviewVideo.Visibility = Visibility.Collapsed;
 
+        PlaybackOverlay.Visibility = Visibility.Collapsed;
+        PlaybackOverlay.ResetState();
+
         EmptyStateText.Visibility = Visibility.Collapsed;
 
         MediaPath = imagePath;
@@ -67,7 +71,9 @@ public partial class PostSnipWindow : Window
         PreviewVideo.Source = new Uri(videoPath, UriKind.Absolute);
         PreviewVideo.Visibility = Visibility.Visible;
         PreviewVideo.Position = TimeSpan.Zero;
-        PreviewVideo.Play();
+
+        PlaybackOverlay.Visibility = Visibility.Visible;
+        PlaybackOverlay.Pause();
 
         EmptyStateText.Visibility = Visibility.Collapsed;
 
@@ -95,7 +101,7 @@ public partial class PostSnipWindow : Window
     {
         try
         {
-            PreviewVideo.Stop();
+            PlaybackOverlay.Stop();
         }
         catch
         {
