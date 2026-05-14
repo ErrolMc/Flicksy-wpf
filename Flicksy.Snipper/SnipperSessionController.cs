@@ -114,15 +114,25 @@ internal sealed class SnipperSessionController : IDisposable
 
     private void LaunchEditorWithMedia(string mediaPath)
     {
+        if (TryLaunchEditorWithMedia(mediaPath, out var errorMessage))
+        {
+            return;
+        }
+
+        System.Windows.MessageBox.Show(
+            $"{errorMessage}\n\nSaved media:\n{mediaPath}",
+            "Flicksy Snipper",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+    }
+
+    internal bool TryLaunchEditorWithMedia(string mediaPath, out string? errorMessage)
+    {
         var editorPath = ResolveEditorExecutablePath();
         if (string.IsNullOrWhiteSpace(editorPath))
         {
-            System.Windows.MessageBox.Show(
-                $"Flicksy.Editor.exe was not found. Build Flicksy.Editor first.\n\nSaved media:\n{mediaPath}",
-                "Flicksy Snipper",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-            return;
+            errorMessage = "Flicksy.Editor.exe was not found. Build Flicksy.Editor first.";
+            return false;
         }
 
         try
@@ -134,22 +144,19 @@ internal sealed class SnipperSessionController : IDisposable
                 WorkingDirectory = Path.GetDirectoryName(editorPath),
                 UseShellExecute = true
             });
+
+            errorMessage = null;
+            return true;
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            System.Windows.MessageBox.Show(
-                $"Unable to start Flicksy.Editor:\n{ex.Message}\n\nSaved media:\n{mediaPath}",
-                "Flicksy Snipper",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            errorMessage = $"Unable to start Flicksy.Editor:\n{ex.Message}";
+            return false;
         }
         catch (InvalidOperationException ex)
         {
-            System.Windows.MessageBox.Show(
-                $"Unable to start Flicksy.Editor:\n{ex.Message}\n\nSaved media:\n{mediaPath}",
-                "Flicksy Snipper",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            errorMessage = $"Unable to start Flicksy.Editor:\n{ex.Message}";
+            return false;
         }
     }
 
