@@ -13,6 +13,11 @@ namespace Flicksy.Snipper.Overlays;
 
 public partial class PreSnipOverlayWindow : Window
 {
+    private static readonly SolidColorBrush SelectedModeButtonBackgroundBrush = new(System.Windows.Media.Color.FromRgb(0, 120, 212));
+    private static readonly SolidColorBrush UnselectedModeButtonBackgroundBrush = new(System.Windows.Media.Color.FromRgb(51, 51, 51));
+    private static readonly SolidColorBrush SelectedModeButtonBorderBrush = new(System.Windows.Media.Color.FromRgb(0, 120, 212));
+    private static readonly SolidColorBrush UnselectedModeButtonBorderBrush = new(System.Windows.Media.Color.FromArgb(0x88, 0xFF, 0xFF, 0xFF));
+
     private readonly DrawingRectangle _screenBounds;
     private readonly Action<Bitmap> _onSnipCaptured;
     private readonly Action<DrawingRectangle, DrawingRectangle> _onVideoAreaSelected;
@@ -163,11 +168,11 @@ public partial class PreSnipOverlayWindow : Window
     private static void SetButtonStyle(System.Windows.Controls.Button button, bool selected)
     {
         button.Background = selected
-            ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(102, 102, 102))
-            : new SolidColorBrush(System.Windows.Media.Color.FromRgb(70, 70, 70));
+            ? SelectedModeButtonBackgroundBrush
+            : UnselectedModeButtonBackgroundBrush;
         button.BorderBrush = selected
-            ? System.Windows.Media.Brushes.White
-            : new SolidColorBrush(System.Windows.Media.Color.FromRgb(120, 120, 120));
+            ? SelectedModeButtonBorderBrush
+            : UnselectedModeButtonBorderBrush;
         button.BorderThickness = new Thickness(1);
     }
 

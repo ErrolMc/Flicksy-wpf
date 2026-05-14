@@ -8,11 +8,80 @@
         MinHeight="420"
         MinWidth="640"
         WindowStartupLocation="CenterOwner"
-        Background="#111111">
+        Background="#121212">
+    <Window.Resources>
+        <SolidColorBrush x:Key="ChromeBackgroundBrush" Color="#1A1A1A" />
+        <SolidColorBrush x:Key="ChromeBorderBrush" Color="#3DFFFFFF" />
+        <SolidColorBrush x:Key="PrimaryButtonBrush" Color="#0078D4" />
+        <SolidColorBrush x:Key="PrimaryButtonHoverBrush" Color="#1683D8" />
+        <SolidColorBrush x:Key="PrimaryButtonPressedBrush" Color="#006CBE" />
+        <SolidColorBrush x:Key="SecondaryButtonBrush" Color="#333333" />
+        <SolidColorBrush x:Key="SecondaryButtonHoverBrush" Color="#3F3F3F" />
+        <SolidColorBrush x:Key="SecondaryButtonPressedBrush" Color="#2B2B2B" />
+        <SolidColorBrush x:Key="SecondaryButtonBorderBrush" Color="#55FFFFFF" />
+
+        <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="88" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource PrimaryButtonBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryButtonBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryButtonHoverBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryButtonHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryButtonPressedBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryButtonPressedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SecondaryToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource SecondaryButtonBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource SecondaryButtonBorderBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource SecondaryButtonHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource SecondaryButtonPressedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
     <DockPanel>
         <Border DockPanel.Dock="Top"
-                Background="#1F1F1F"
-                BorderBrush="#333333"
+                Background="{StaticResource ChromeBackgroundBrush}"
+                BorderBrush="{StaticResource ChromeBorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="12">
             <Grid>
@@ -29,14 +98,12 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button x:Name="SaveButton"
-                            Width="88"
-                            Height="32"
+                            Style="{StaticResource PrimaryToolbarButtonStyle}"
                             Margin="0,0,8,0"
                             Content="Save"
                             Click="OnSaveClick" />
                     <Button x:Name="CancelButton"
-                            Width="88"
-                            Height="32"
+                            Style="{StaticResource SecondaryToolbarButtonStyle}"
                             Content="Cancel"
                             Click="OnCancelClick" />
                 </StackPanel>

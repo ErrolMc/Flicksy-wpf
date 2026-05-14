@@ -43,9 +43,6 @@ public partial class VideoRecordingOverlayWindow : Window
         Width = bounds.Width;
         Height = bounds.Height;
 
-        SetButtonStyle(StartStopButton);
-        SetButtonStyle(CancelButton);
-
         Loaded += (_, _) =>
         {
             Focus();
@@ -117,13 +114,6 @@ public partial class VideoRecordingOverlayWindow : Window
         Canvas.SetTop(SelectionBorder, _selectionRect.Y);
         SelectionBorder.Width = _selectionRect.Width;
         SelectionBorder.Height = _selectionRect.Height;
-    }
-
-    private static void SetButtonStyle(System.Windows.Controls.Button button)
-    {
-        button.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(70, 70, 70));
-        button.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(120, 120, 120));
-        button.BorderThickness = new Thickness(1);
     }
 
     private void UpdateTimerText()

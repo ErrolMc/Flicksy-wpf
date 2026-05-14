@@ -13,6 +13,49 @@
         MouseLeftButtonDown="OnMouseLeftButtonDown"
         MouseMove="OnMouseMove"
         MouseLeftButtonUp="OnMouseLeftButtonUp">
+    <Window.Resources>
+        <SolidColorBrush x:Key="OverlayMenuBackgroundBrush" Color="#CC1F1F1F" />
+        <SolidColorBrush x:Key="OverlayMenuBorderBrush" Color="#66FFFFFF" />
+        <SolidColorBrush x:Key="OverlayTextBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ModeButtonBackgroundBrush" Color="#333333" />
+        <SolidColorBrush x:Key="ModeButtonHoverBrush" Color="#3F3F3F" />
+        <SolidColorBrush x:Key="ModeButtonBorderBrush" Color="#55FFFFFF" />
+
+        <Style x:Key="ModeButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource OverlayTextBrush}" />
+            <Setter Property="Background" Value="{StaticResource ModeButtonBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ModeButtonBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource ModeButtonHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.85" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <Grid>
         <Image x:Name="BackgroundImage" Stretch="Fill" />
 
@@ -34,9 +77,9 @@
                 VerticalAlignment="Top"
                 Margin="0,12,0,0"
                 Padding="12,10,16,10"
-                Background="#545454"
-                BorderBrush="#DCDCDC"
-                BorderThickness="2"
+                Background="{StaticResource OverlayMenuBackgroundBrush}"
+                BorderBrush="{StaticResource OverlayMenuBorderBrush}"
+                BorderThickness="1"
                 CornerRadius="14"
                 Cursor="Arrow">
             <Grid>
@@ -49,10 +92,10 @@
 
                 <Button x:Name="SnipModeButton"
                         Grid.Column="0"
+                        Style="{StaticResource ModeButtonStyle}"
                         Width="34"
                         Height="34"
                         Margin="0,0,6,0"
-                        Foreground="White"
                         ToolTip="Snip mode"
                         Click="OnSnipModeClick">
                     <Image Width="20"
@@ -62,9 +105,9 @@
                 </Button>
                 <Button x:Name="RecordModeButton"
                         Grid.Column="1"
+                        Style="{StaticResource ModeButtonStyle}"
                         Width="34"
                         Height="34"
-                        Foreground="White"
                         ToolTip="Record mode"
                         Click="OnRecordModeClick">
                     <Image Width="20"
@@ -75,7 +118,7 @@
                 <TextBlock x:Name="InstructionText"
                            Grid.Column="3"
                            VerticalAlignment="Center"
-                           Foreground="White"
+                           Foreground="{StaticResource OverlayTextBrush}"
                            FontSize="14"
                            Text="Click and drag an area to snip" />
             </Grid>

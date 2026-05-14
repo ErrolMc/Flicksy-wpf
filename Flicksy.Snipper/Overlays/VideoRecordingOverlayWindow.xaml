@@ -9,6 +9,76 @@
         Topmost="True"
         Focusable="True"
         KeyDown="OnWindowKeyDown">
+    <Window.Resources>
+        <SolidColorBrush x:Key="OverlayMenuBackgroundBrush" Color="#CC1F1F1F" />
+        <SolidColorBrush x:Key="OverlayMenuBorderBrush" Color="#66FFFFFF" />
+        <SolidColorBrush x:Key="OverlayTextBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="PrimaryButtonBrush" Color="#0078D4" />
+        <SolidColorBrush x:Key="PrimaryButtonHoverBrush" Color="#1683D8" />
+        <SolidColorBrush x:Key="PrimaryButtonPressedBrush" Color="#006CBE" />
+        <SolidColorBrush x:Key="SecondaryButtonBrush" Color="#333333" />
+        <SolidColorBrush x:Key="SecondaryButtonHoverBrush" Color="#3F3F3F" />
+        <SolidColorBrush x:Key="SecondaryButtonPressedBrush" Color="#2B2B2B" />
+        <SolidColorBrush x:Key="SecondaryButtonBorderBrush" Color="#55FFFFFF" />
+
+        <Style x:Key="OverlayButtonBaseStyle" TargetType="Button">
+            <Setter Property="Width" Value="90" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Foreground" Value="{StaticResource OverlayTextBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryOverlayButtonStyle" TargetType="Button" BasedOn="{StaticResource OverlayButtonBaseStyle}">
+            <Setter Property="Background" Value="{StaticResource PrimaryButtonBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryButtonBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryButtonHoverBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryButtonHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryButtonPressedBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryButtonPressedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SecondaryOverlayButtonStyle" TargetType="Button" BasedOn="{StaticResource OverlayButtonBaseStyle}">
+            <Setter Property="Background" Value="{StaticResource SecondaryButtonBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource SecondaryButtonBorderBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource SecondaryButtonHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource SecondaryButtonPressedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
     <Grid>
         <Canvas x:Name="OverlayCanvas" Background="Transparent">
             <Rectangle x:Name="SelectionBorder"
@@ -23,28 +93,24 @@
                 VerticalAlignment="Top"
                 Margin="0,12,0,0"
                 Padding="12,10,12,10"
-                Background="#545454"
-                BorderBrush="#DCDCDC"
-                BorderThickness="2"
+                Background="{StaticResource OverlayMenuBackgroundBrush}"
+                BorderBrush="{StaticResource OverlayMenuBorderBrush}"
+                BorderThickness="1"
                 CornerRadius="14">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="StartStopButton"
-                        Width="90"
-                        Height="34"
+                        Style="{StaticResource PrimaryOverlayButtonStyle}"
                         Margin="0,0,8,0"
-                        Foreground="White"
                         Content="Start"
                         Click="OnStartStopClick" />
                 <Button x:Name="CancelButton"
-                        Width="90"
-                        Height="34"
+                        Style="{StaticResource SecondaryOverlayButtonStyle}"
                         Margin="0,0,12,0"
-                        Foreground="White"
                         Content="Cancel"
                         Click="OnCancelClick" />
                 <TextBlock x:Name="TimerText"
                            VerticalAlignment="Center"
-                           Foreground="White"
+                           Foreground="{StaticResource OverlayTextBrush}"
                            FontSize="14"
                            Text="00:00" />
             </StackPanel>
