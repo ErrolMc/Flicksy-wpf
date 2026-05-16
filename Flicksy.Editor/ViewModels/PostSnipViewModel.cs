@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Flicksy.Editor.Media;
 
 namespace Flicksy.Editor.ViewModels;
 
@@ -22,8 +24,12 @@ public partial class PostSnipViewModel : ObservableObject
     [ObservableProperty]
     private ImageSource? imageSource;
 
-    [ObservableProperty]
-    private Uri? videoSource;
+    public PostSnipViewModel(IVideoPlayer player)
+    {
+        Player = player;
+    }
+
+    public IVideoPlayer Player { get; }
 
     public bool HasMedia => !string.IsNullOrWhiteSpace(MediaPath);
 
@@ -34,7 +40,6 @@ public partial class PostSnipViewModel : ObservableObject
     public event EventHandler<SaveDialogRequest>? SaveDialogRequested;
     public event EventHandler<string>? ErrorOccurred;
     public event EventHandler? CloseRequested;
-    public event EventHandler? VideoLoaded;
 
     public void LoadImage(string imagePath)
     {
@@ -48,6 +53,8 @@ public partial class PostSnipViewModel : ObservableObject
             throw new FileNotFoundException("Image file was not found.", imagePath);
         }
 
+        Player.Close();
+
         var bitmap = new BitmapImage();
         bitmap.BeginInit();
         bitmap.CacheOption = BitmapCacheOption.OnLoad;
@@ -56,12 +63,11 @@ public partial class PostSnipViewModel : ObservableObject
         bitmap.Freeze();
 
         ImageSource = bitmap;
-        VideoSource = null;
         IsVideo = false;
         MediaPath = imagePath;
     }
 
-    public void LoadVideo(string videoPath)
+    public async Task LoadVideoAsync(string videoPath)
     {
         if (string.IsNullOrWhiteSpace(videoPath))
         {
@@ -74,11 +80,10 @@ public partial class PostSnipViewModel : ObservableObject
         }
 
         ImageSource = null;
-        VideoSource = new Uri(videoPath, UriKind.Absolute);
         IsVideo = true;
         MediaPath = videoPath;
 
-        VideoLoaded?.Invoke(this, EventArgs.Empty);
+        await Player.OpenAsync(videoPath).ConfigureAwait(true);
     }
 
     [RelayCommand]

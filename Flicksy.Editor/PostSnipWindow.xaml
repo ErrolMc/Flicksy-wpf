@@ -117,15 +117,10 @@
                    Source="{Binding ImageSource}"
                    Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}" />
 
-            <MediaElement x:Name="PreviewVideo"
-                          LoadedBehavior="Manual"
-                          UnloadedBehavior="Stop"
-                          ScrubbingEnabled="True"
-                          Stretch="Uniform"
-                          Source="{Binding VideoSource}"
-                          Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}" />
+            <controls:VideoSurface Player="{Binding Player}"
+                                   Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}" />
 
-            <controls:VideoPlaybackOverlay x:Name="PlaybackOverlay"
+            <controls:VideoPlaybackOverlay Player="{Binding Player}"
                                            Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}"
                                            VerticalAlignment="Bottom"
                                            Panel.ZIndex="10" />

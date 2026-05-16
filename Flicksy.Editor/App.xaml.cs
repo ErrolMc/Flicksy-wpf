@@ -1,7 +1,10 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
+using Flicksy.Editor.Media;
 using Flicksy.Editor.ViewModels;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,7 +22,23 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        try
+        {
+            FfmpegLocator.Initialize();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"FFmpeg initialization failed:\n{ex.Message}\n\nThe application will exit.",
+                "Flicksy.Editor",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(1);
+            return;
+        }
+
         var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddTransient<IVideoPlayer, FFmpegVideoPlayer>();
         builder.Services.AddTransient<PostSnipViewModel>();
         builder.Services.AddTransient<PostSnipWindow>();
 
@@ -30,21 +49,13 @@ public partial class App : Application
         var configuration = _host.Services.GetRequiredService<IConfiguration>();
         var mediaPath = ResolveStartupMediaPath(e.Args, configuration);
 
-        if (!string.IsNullOrWhiteSpace(mediaPath))
-        {
-            var extension = Path.GetExtension(mediaPath).ToLowerInvariant();
-            if (IsVideoExtension(extension))
-            {
-                window.ViewModel.LoadVideo(mediaPath);
-            }
-            else
-            {
-                window.ViewModel.LoadImage(mediaPath);
-            }
-        }
-
         MainWindow = window;
         window.Show();
+
+        if (!string.IsNullOrWhiteSpace(mediaPath))
+        {
+            QueueMediaLoad(window, mediaPath);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -57,6 +68,34 @@ public partial class App : Application
         }
 
         base.OnExit(e);
+    }
+
+    private static void QueueMediaLoad(PostSnipWindow window, string mediaPath)
+    {
+        window.Dispatcher.InvokeAsync(async () =>
+        {
+            try
+            {
+                var extension = Path.GetExtension(mediaPath).ToLowerInvariant();
+                if (IsVideoExtension(extension))
+                {
+                    await window.ViewModel.LoadVideoAsync(mediaPath).ConfigureAwait(true);
+                }
+                else
+                {
+                    window.ViewModel.LoadImage(mediaPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    window,
+                    $"Failed to load media:\n{ex.Message}",
+                    "Flicksy.Editor",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }, DispatcherPriority.Background);
     }
 
     private static bool IsVideoExtension(string extension)
