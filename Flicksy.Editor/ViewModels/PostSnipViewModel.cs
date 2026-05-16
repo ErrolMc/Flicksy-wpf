@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -137,6 +139,47 @@ public partial class PostSnipViewModel : ObservableObject
     private void Cancel()
     {
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void New()
+    {
+        var snipperPath = ResolveSnipperExecutablePath();
+        if (string.IsNullOrWhiteSpace(snipperPath))
+        {
+            ErrorOccurred?.Invoke(this, "Flicksy.Snipper.exe was not found.");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = snipperPath,
+                WorkingDirectory = Path.GetDirectoryName(snipperPath),
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"Unable to start Flicksy.Snipper:\n{ex.Message}");
+            return;
+        }
+
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static string? ResolveSnipperExecutablePath()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDirectory, "Flicksy.Snipper.exe"),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Snipper", "bin", "Debug", "net10.0-windows", "Flicksy.Snipper.exe")),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Snipper", "bin", "Release", "net10.0-windows", "Flicksy.Snipper.exe")),
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
     }
 
     public void DeleteMediaFile()
