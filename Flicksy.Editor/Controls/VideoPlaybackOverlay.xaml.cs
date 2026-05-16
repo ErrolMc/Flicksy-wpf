@@ -4,13 +4,17 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Flicksy.Editor.Media;
 
 namespace Flicksy.Editor.Controls;
 
 public partial class VideoPlaybackOverlay : UserControl
 {
+    private enum ScrubSource { None, Slider, Keyboard }
+
     private bool _isScrubbing;
+    private ScrubSource _scrubSource = ScrubSource.None;
     private bool _isInternalUpdate;
     private bool _shouldResumeAfterScrub;
     private IVideoPlayer? _player;
@@ -19,11 +23,19 @@ public partial class VideoPlaybackOverlay : UserControl
     private CancellationTokenSource? _scrubCts;
     private Task? _scrubTask;
 
+    // Cumulative target for keyboard frame-stepping. Each KeyDown (including OS
+    // auto-repeats during hold) advances this by one frame in the pressed direction.
+    private long _stepTargetTicks;
+    private bool _leftDown;
+    private bool _rightDown;
+    private Window? _hostWindow;
+
     public VideoPlaybackOverlay()
     {
         InitializeComponent();
         UpdateButtonText();
         UpdateTimeText();
+        Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
 
@@ -205,9 +217,127 @@ public partial class VideoPlaybackOverlay : UserControl
         }
     }
 
-    private void OnSliderMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void OnSliderMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        BeginScrubSession(ScrubSource.Slider);
+    }
+
+    private async void OnSliderMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_scrubSource != ScrubSource.Slider) return;
+        var target = TimeSpan.FromSeconds(Math.Max(0, TimelineSlider.Value));
+        await EndScrubSession(target);
+    }
+
+    private void OnSliderValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isInternalUpdate) return;
+        if (_isScrubbing || TimelineSlider.IsMouseCaptureWithin)
+        {
+            var current = Math.Clamp(TimelineSlider.Value, 0, Math.Max(0, DurationSeconds));
+            CurrentSeconds = current;
+            UpdateTimeText();
+
+            if (_scrubSource == ScrubSource.Slider)
+            {
+                QueueScrubTarget((long)(current * TimeSpan.TicksPerSecond));
+            }
+        }
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        var window = Window.GetWindow(this);
+        if (window == _hostWindow) return;
+        UnhookHostWindowKeys();
+        _hostWindow = window;
+        if (_hostWindow is not null)
+        {
+            // PreviewKeyDown/Up at window level fires before the focused slider's own
+            // arrow-key handling, so setting Handled=true lets us claim Left/Right
+            // without the slider's DecreaseLarge/IncreaseLarge eating them first.
+            _hostWindow.PreviewKeyDown += OnHostKeyDown;
+            _hostWindow.PreviewKeyUp += OnHostKeyUp;
+        }
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        UnhookHostWindowKeys();
+        DetachPlayer(_player);
+        _player = null;
+    }
+
+    private void UnhookHostWindowKeys()
+    {
+        if (_hostWindow is null) return;
+        _hostWindow.PreviewKeyDown -= OnHostKeyDown;
+        _hostWindow.PreviewKeyUp -= OnHostKeyUp;
+        _hostWindow = null;
+    }
+
+    private void OnHostKeyDown(object sender, KeyEventArgs e)
     {
         if (_player is null) return;
+        if (_scrubSource == ScrubSource.Slider) return; // slider owns the session
+
+        int delta = e.Key switch
+        {
+            Key.Left => -1,
+            Key.Right => +1,
+            _ => 0,
+        };
+        if (delta == 0) return;
+
+        e.Handled = true;
+
+        if (_scrubSource != ScrubSource.Keyboard)
+        {
+            BeginScrubSession(ScrubSource.Keyboard);
+            _stepTargetTicks = _player.Position.Ticks;
+        }
+
+        if (e.Key == Key.Left) _leftDown = true;
+        else if (e.Key == Key.Right) _rightDown = true;
+
+        var frameTicks = _player.FrameDuration.Ticks;
+        if (frameTicks <= 0) frameTicks = TimeSpan.FromMilliseconds(33).Ticks;
+
+        var maxTicks = Math.Max(0, _player.Duration.Ticks);
+        _stepTargetTicks = Math.Clamp(_stepTargetTicks + delta * frameTicks, 0, maxTicks);
+
+        // Update slider thumb + time text immediately for responsive feedback;
+        // the video frame catches up when the worker's Seek completes.
+        var seconds = _stepTargetTicks / (double)TimeSpan.TicksPerSecond;
+        CurrentSeconds = seconds;
+        _isInternalUpdate = true;
+        TimelineSlider.Value = Math.Clamp(seconds, 0, Math.Max(0, DurationSeconds));
+        _isInternalUpdate = false;
+        UpdateTimeText();
+
+        QueueScrubTarget(_stepTargetTicks);
+    }
+
+    private async void OnHostKeyUp(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Left) _leftDown = false;
+        else if (e.Key == Key.Right) _rightDown = false;
+        else return;
+
+        if (_scrubSource != ScrubSource.Keyboard) return;
+        if (_leftDown || _rightDown) return; // other arrow still held
+
+        e.Handled = true;
+        var target = TimeSpan.FromTicks(Math.Max(0, _stepTargetTicks));
+        await EndScrubSession(target);
+    }
+
+    private void BeginScrubSession(ScrubSource source)
+    {
+        if (_player is null) return;
+        if (_isScrubbing) return;
+
+        _scrubSource = source;
         _shouldResumeAfterScrub = _player.State == PlaybackState.Playing;
         if (_shouldResumeAfterScrub)
         {
@@ -234,9 +364,11 @@ public partial class VideoPlaybackOverlay : UserControl
         _scrubTask = Task.Run(() => ScrubWorkerAsync(player, channel, token));
     }
 
-    private async void OnSliderMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private async Task EndScrubSession(TimeSpan finalTarget)
     {
+        if (!_isScrubbing) return;
         _isScrubbing = false;
+        _scrubSource = ScrubSource.None;
 
         var pendingTask = _scrubTask;
         var pendingCts = _scrubCts;
@@ -256,8 +388,7 @@ public partial class VideoPlaybackOverlay : UserControl
 
         if (_player is null) return;
 
-        var target = TimeSpan.FromSeconds(Math.Max(0, TimelineSlider.Value));
-        _player.Seek(target);
+        _player.Seek(finalTarget);
 
         if (_shouldResumeAfterScrub)
         {
@@ -266,21 +397,9 @@ public partial class VideoPlaybackOverlay : UserControl
         }
     }
 
-    private void OnSliderValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void QueueScrubTarget(long ticks)
     {
-        if (_isInternalUpdate) return;
-        if (_isScrubbing || TimelineSlider.IsMouseCaptureWithin)
-        {
-            var current = Math.Clamp(TimelineSlider.Value, 0, Math.Max(0, DurationSeconds));
-            CurrentSeconds = current;
-            UpdateTimeText();
-
-            if (_isScrubbing && _scrubChannel is not null)
-            {
-                var ticks = (long)(current * TimeSpan.TicksPerSecond);
-                _scrubChannel.Writer.TryWrite(ticks);
-            }
-        }
+        _scrubChannel?.Writer.TryWrite(ticks);
     }
 
     private async Task ScrubWorkerAsync(IVideoPlayer player, Channel<long> channel, CancellationToken ct)
@@ -304,12 +423,6 @@ public partial class VideoPlaybackOverlay : UserControl
         {
             // Expected on scrub stop.
         }
-    }
-
-    private void OnUnloaded(object sender, RoutedEventArgs e)
-    {
-        DetachPlayer(_player);
-        _player = null;
     }
 
     private void UpdateButtonText()

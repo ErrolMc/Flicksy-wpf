@@ -38,6 +38,7 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
     public PlaybackState State => _state;
     public TimeSpan Position => _position;
     public TimeSpan Duration { get; private set; }
+    public TimeSpan FrameDuration { get; private set; }
     public int FrameWidth { get; private set; }
     public int FrameHeight { get; private set; }
 
@@ -65,6 +66,8 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
             Duration = file.Video.Info.Duration;
             FrameWidth = file.Video.Info.FrameSize.Width;
             FrameHeight = file.Video.Info.FrameSize.Height;
+            var fps = file.Video.Info.AvgFrameRate;
+            FrameDuration = fps > 0 ? TimeSpan.FromSeconds(1.0 / fps) : TimeSpan.FromMilliseconds(33);
         }, cancellationToken).ConfigureAwait(true);
 
         _frames = new BlockingCollection<VideoFrame>(boundedCapacity: FrameQueueCapacity);

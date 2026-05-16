@@ -9,6 +9,7 @@ public interface IVideoPlayer : IDisposable
     PlaybackState State { get; }
     TimeSpan Position { get; }
     TimeSpan Duration { get; }
+    TimeSpan FrameDuration { get; }
     int FrameWidth { get; }
     int FrameHeight { get; }
 
