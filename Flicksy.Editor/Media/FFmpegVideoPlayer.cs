@@ -298,25 +298,52 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
 
     private void OnRendering(object? sender, EventArgs e)
     {
-        if (_frames is null) return;
-
-        var elapsed = _clockOffset + _clock.Elapsed;
-
-        if (!_pendingFrame.HasValue && _frames.TryTake(out var firstAvailable))
-        {
-            _pendingFrame = firstAvailable;
-        }
-
         VideoFrame? toPresent = null;
+        bool raisePositionChanged = false;
 
-        while (_pendingFrame.HasValue && _pendingFrame.Value.Pts <= elapsed + FrameDueTolerance)
+        // TryEnter (not lock) because scrub seeks run on a background thread and
+        // hold _seekLock for tens of ms each. Blocking here would stall the UI
+        // thread for the full seek duration. Skipping a tick is harmless — the
+        // new frame will be presented on the next composition pass.
+        if (!Monitor.TryEnter(_seekLock))
         {
+            return;
+        }
+        try
+        {
+            if (_frames is null) return;
+
+            var elapsed = _clockOffset + _clock.Elapsed;
+
+            if (!_pendingFrame.HasValue && _frames.TryTake(out var firstAvailable))
+            {
+                _pendingFrame = firstAvailable;
+            }
+
+            while (_pendingFrame.HasValue && _pendingFrame.Value.Pts <= elapsed + FrameDueTolerance)
+            {
+                if (toPresent.HasValue)
+                {
+                    ArrayPool<byte>.Shared.Return(toPresent.Value.Buffer);
+                }
+                toPresent = _pendingFrame;
+                _pendingFrame = _frames.TryTake(out var next) ? next : null;
+            }
+
             if (toPresent.HasValue)
             {
-                ArrayPool<byte>.Shared.Return(toPresent.Value.Buffer);
+                _position = toPresent.Value.Pts;
+                if (_lastNotifiedPosition == TimeSpan.MinValue
+                    || (_position - _lastNotifiedPosition).Duration() >= PositionNotifyInterval)
+                {
+                    _lastNotifiedPosition = _position;
+                    raisePositionChanged = true;
+                }
             }
-            toPresent = _pendingFrame;
-            _pendingFrame = _frames.TryTake(out var next) ? next : null;
+        }
+        finally
+        {
+            Monitor.Exit(_seekLock);
         }
 
         if (toPresent.HasValue)
@@ -330,14 +357,11 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
             {
                 ArrayPool<byte>.Shared.Return(f.Buffer);
             }
+        }
 
-            _position = f.Pts;
-            if (_lastNotifiedPosition == TimeSpan.MinValue
-                || (_position - _lastNotifiedPosition).Duration() >= PositionNotifyInterval)
-            {
-                _lastNotifiedPosition = _position;
-                PositionChanged?.Invoke(this, EventArgs.Empty);
-            }
+        if (raisePositionChanged)
+        {
+            PositionChanged?.Invoke(this, EventArgs.Empty);
         }
 
         DetectEndOfStream();
@@ -345,22 +369,41 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
 
     private void DetectEndOfStream()
     {
-        if (_mediaEndedRaised) return;
-        if (_frames is null) return;
-        if (!_frames.IsAddingCompleted) return;
-        if (_pendingFrame.HasValue || _frames.Count > 0) return;
-        if (_state == PlaybackState.Ended) return;
+        bool transitioned = false;
 
-        _mediaEndedRaised = true;
-        _clock.Stop();
-        _clock.Reset();
-        _clockOffset = Duration;
-        _position = Duration;
-        _lastNotifiedPosition = Duration;
+        // Same TryEnter rationale as OnRendering: never block the UI thread on a
+        // background seek. End-of-stream can be detected on the next tick.
+        if (!Monitor.TryEnter(_seekLock))
+        {
+            return;
+        }
+        try
+        {
+            if (_mediaEndedRaised) return;
+            if (_frames is null) return;
+            if (!_frames.IsAddingCompleted) return;
+            if (_pendingFrame.HasValue || _frames.Count > 0) return;
+            if (_state == PlaybackState.Ended) return;
 
-        SetState(PlaybackState.Ended);
-        PositionChanged?.Invoke(this, EventArgs.Empty);
-        MediaEnded?.Invoke(this, EventArgs.Empty);
+            _mediaEndedRaised = true;
+            _clock.Stop();
+            _clock.Reset();
+            _clockOffset = Duration;
+            _position = Duration;
+            _lastNotifiedPosition = Duration;
+            transitioned = true;
+        }
+        finally
+        {
+            Monitor.Exit(_seekLock);
+        }
+
+        if (transitioned)
+        {
+            SetState(PlaybackState.Ended);
+            PositionChanged?.Invoke(this, EventArgs.Empty);
+            MediaEnded?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void SetState(PlaybackState newState)

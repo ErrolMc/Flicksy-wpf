@@ -1,4 +1,7 @@
 using System;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Flicksy.Editor.Media;
@@ -11,6 +14,10 @@ public partial class VideoPlaybackOverlay : UserControl
     private bool _isInternalUpdate;
     private bool _shouldResumeAfterScrub;
     private IVideoPlayer? _player;
+
+    private Channel<long>? _scrubChannel;
+    private CancellationTokenSource? _scrubCts;
+    private Task? _scrubTask;
 
     public VideoPlaybackOverlay()
     {
@@ -207,11 +214,46 @@ public partial class VideoPlaybackOverlay : UserControl
             _player.Pause();
         }
         _isScrubbing = true;
+
+        // AllowSynchronousContinuations=false is load-bearing: without it, signaling
+        // the worker (e.g. SemaphoreSlim.Release) would run its awaiter continuation
+        // INLINE on the UI thread, dragging player.Seek onto the UI thread with it.
+        // DropOldest + capacity 1 also gives us free coalescing — latest target wins.
+        _scrubChannel = Channel.CreateBounded<long>(new BoundedChannelOptions(1)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false,
+        });
+        _scrubCts = new CancellationTokenSource();
+
+        var player = _player;
+        var channel = _scrubChannel;
+        var token = _scrubCts.Token;
+        _scrubTask = Task.Run(() => ScrubWorkerAsync(player, channel, token));
     }
 
-    private void OnSliderMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private async void OnSliderMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         _isScrubbing = false;
+
+        var pendingTask = _scrubTask;
+        var pendingCts = _scrubCts;
+        var pendingChannel = _scrubChannel;
+        _scrubTask = null;
+        _scrubCts = null;
+        _scrubChannel = null;
+
+        pendingChannel?.Writer.TryComplete();
+        pendingCts?.Cancel();
+        if (pendingTask is not null)
+        {
+            try { await pendingTask.ConfigureAwait(true); }
+            catch { /* swallow */ }
+        }
+        pendingCts?.Dispose();
+
         if (_player is null) return;
 
         var target = TimeSpan.FromSeconds(Math.Max(0, TimelineSlider.Value));
@@ -229,8 +271,38 @@ public partial class VideoPlaybackOverlay : UserControl
         if (_isInternalUpdate) return;
         if (_isScrubbing || TimelineSlider.IsMouseCaptureWithin)
         {
-            CurrentSeconds = Math.Clamp(TimelineSlider.Value, 0, Math.Max(0, DurationSeconds));
+            var current = Math.Clamp(TimelineSlider.Value, 0, Math.Max(0, DurationSeconds));
+            CurrentSeconds = current;
             UpdateTimeText();
+
+            if (_isScrubbing && _scrubChannel is not null)
+            {
+                var ticks = (long)(current * TimeSpan.TicksPerSecond);
+                _scrubChannel.Writer.TryWrite(ticks);
+            }
+        }
+    }
+
+    private async Task ScrubWorkerAsync(IVideoPlayer player, Channel<long> channel, CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var ticks in channel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
+                try { player.Seek(new TimeSpan(ticks)); }
+                catch { /* swallow scrub errors */ }
+
+                // Yield _seekLock for ~one composition tick (60Hz ≈ 16ms) so the
+                // player's OnRendering TryEnter has a chance to grab it and present
+                // the freshly-seeked frame. Without this pause, back-to-back scrub
+                // seeks hold the lock continuously and the render path starves.
+                try { await Task.Delay(16, ct).ConfigureAwait(false); }
+                catch (OperationCanceledException) { return; }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on scrub stop.
         }
     }
 
