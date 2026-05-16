@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 
 namespace Flicksy.Editor;
 
@@ -83,7 +84,48 @@ public partial class PostSnipWindow : Window
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
-        // Intentionally left blank for now.
+        if (string.IsNullOrWhiteSpace(MediaPath) || !File.Exists(MediaPath))
+        {
+            MessageBox.Show(this, "There is no media to save.", "Save", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var sourceExtension = Path.GetExtension(MediaPath);
+        if (string.IsNullOrWhiteSpace(sourceExtension))
+        {
+            sourceExtension = IsVideo ? ".mp4" : ".png";
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = IsVideo ? "Save Recording" : "Save Snip",
+            FileName = $"Flicksy_{DateTime.Now:yyyyMMdd_HHmmss}{sourceExtension}",
+            DefaultExt = sourceExtension,
+            AddExtension = true,
+            OverwritePrompt = true,
+            Filter = IsVideo
+                ? "MP4 Video (*.mp4)|*.mp4|All Files (*.*)|*.*"
+                : "PNG Image (*.png)|*.png|All Files (*.*)|*.*",
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!string.Equals(Path.GetFullPath(dialog.FileName), Path.GetFullPath(MediaPath), StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(MediaPath, dialog.FileName, overwrite: true);
+            }
+
+            Close();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Failed to save file:\n{ex.Message}", "Save", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e)
