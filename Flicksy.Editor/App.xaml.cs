@@ -76,6 +76,7 @@ public partial class App : Application
         {
             try
             {
+                window.ViewModel.PreserveMediaFile = true;
                 var extension = Path.GetExtension(mediaPath).ToLowerInvariant();
                 if (IsVideoExtension(extension))
                 {

@@ -31,6 +31,8 @@ public partial class PostSnipViewModel : ObservableObject
 
     public IVideoPlayer Player { get; }
 
+    public bool PreserveMediaFile { get; set; }
+
     public bool HasMedia => !string.IsNullOrWhiteSpace(MediaPath);
 
     public bool IsImage => HasMedia && !IsVideo;
@@ -139,7 +141,7 @@ public partial class PostSnipViewModel : ObservableObject
 
     public void DeleteMediaFile()
     {
-        if (string.IsNullOrWhiteSpace(MediaPath))
+        if (PreserveMediaFile || string.IsNullOrWhiteSpace(MediaPath))
         {
             return;
         }
