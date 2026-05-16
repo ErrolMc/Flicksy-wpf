@@ -17,7 +17,7 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
     private static readonly TimeSpan PositionNotifyInterval = TimeSpan.FromMilliseconds(33);
     private static readonly TimeSpan FrameDueTolerance = TimeSpan.FromMilliseconds(16);
 
-    private readonly object _seekLock = new();
+    private readonly Lock _seekLock = new();
     private readonly Stopwatch _clock = new();
 
     private MediaFile? _file;
@@ -308,7 +308,7 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
         // hold _seekLock for tens of ms each. Blocking here would stall the UI
         // thread for the full seek duration. Skipping a tick is harmless — the
         // new frame will be presented on the next composition pass.
-        if (!Monitor.TryEnter(_seekLock))
+        if (!_seekLock.TryEnter())
         {
             return;
         }
@@ -346,7 +346,7 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
         }
         finally
         {
-            Monitor.Exit(_seekLock);
+            _seekLock.Exit();
         }
 
         if (toPresent.HasValue)
@@ -376,7 +376,7 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
 
         // Same TryEnter rationale as OnRendering: never block the UI thread on a
         // background seek. End-of-stream can be detected on the next tick.
-        if (!Monitor.TryEnter(_seekLock))
+        if (!_seekLock.TryEnter())
         {
             return;
         }
@@ -398,7 +398,7 @@ public sealed class FFmpegVideoPlayer : IVideoPlayer
         }
         finally
         {
-            Monitor.Exit(_seekLock);
+            _seekLock.Exit();
         }
 
         if (transitioned)
