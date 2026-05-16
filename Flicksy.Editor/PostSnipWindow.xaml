@@ -10,6 +10,8 @@
         WindowStartupLocation="CenterOwner"
         Background="#121212">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
         <SolidColorBrush x:Key="ChromeBackgroundBrush" Color="#1A1A1A" />
         <SolidColorBrush x:Key="ChromeBorderBrush" Color="#3DFFFFFF" />
         <SolidColorBrush x:Key="PrimaryButtonBrush" Color="#0078D4" />
@@ -101,38 +103,39 @@
                             Style="{StaticResource PrimaryToolbarButtonStyle}"
                             Margin="0,0,8,0"
                             Content="Save"
-                            Click="OnSaveClick" />
+                            Command="{Binding SaveCommand}" />
                     <Button x:Name="CancelButton"
                             Style="{StaticResource SecondaryToolbarButtonStyle}"
                             Content="Cancel"
-                            Click="OnCancelClick" />
+                            Command="{Binding CancelCommand}" />
                 </StackPanel>
             </Grid>
         </Border>
 
         <Grid Background="#111111">
-            <Image x:Name="PreviewImage"
-                   Stretch="Uniform"
-                   Visibility="Collapsed" />
+            <Image Stretch="Uniform"
+                   Source="{Binding ImageSource}"
+                   Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}" />
 
             <MediaElement x:Name="PreviewVideo"
                           LoadedBehavior="Manual"
                           UnloadedBehavior="Stop"
                           ScrubbingEnabled="True"
                           Stretch="Uniform"
-                          Visibility="Collapsed" />
+                          Source="{Binding VideoSource}"
+                          Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}" />
 
             <controls:VideoPlaybackOverlay x:Name="PlaybackOverlay"
-                                           Visibility="Collapsed"
+                                           Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}"
                                            VerticalAlignment="Bottom"
                                            Panel.ZIndex="10" />
 
-            <TextBlock x:Name="EmptyStateText"
-                       Text="No media selected"
+            <TextBlock Text="No media selected"
                        Foreground="#BDBDBD"
                        FontSize="18"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Center" />
+                       VerticalAlignment="Center"
+                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
         </Grid>
     </DockPanel>
 </Window>

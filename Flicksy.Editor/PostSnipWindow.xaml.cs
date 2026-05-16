@@ -1,142 +1,87 @@
 using System;
-using System.IO;
+using System.ComponentModel;
 using System.Windows;
-using System.Windows.Media.Imaging;
+using Flicksy.Editor.ViewModels;
 using Microsoft.Win32;
 
 namespace Flicksy.Editor;
 
 public partial class PostSnipWindow : Window
 {
-    public string? MediaPath { get; private set; }
-
-    public bool IsVideo { get; private set; }
-
-    public PostSnipWindow()
+    public PostSnipWindow(PostSnipViewModel viewModel)
     {
         InitializeComponent();
+
+        ViewModel = viewModel;
+        DataContext = viewModel;
+
         PlaybackOverlay.AttachMediaElement(PreviewVideo);
+
+        viewModel.SaveDialogRequested += OnSaveDialogRequested;
+        viewModel.CloseRequested += OnCloseRequested;
+        viewModel.ErrorOccurred += OnErrorOccurred;
+        viewModel.VideoLoaded += OnVideoLoaded;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
-    public void LoadImage(string imagePath)
-    {
-        if (string.IsNullOrWhiteSpace(imagePath))
-        {
-            throw new ArgumentException("Image path is required.", nameof(imagePath));
-        }
-
-        if (!File.Exists(imagePath))
-        {
-            throw new FileNotFoundException("Image file was not found.", imagePath);
-        }
-
-        StopVideo();
-
-        var bitmap = new BitmapImage();
-        bitmap.BeginInit();
-        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-        bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-        bitmap.EndInit();
-        bitmap.Freeze();
-
-        PreviewImage.Source = bitmap;
-        PreviewImage.Visibility = Visibility.Visible;
-
-        PreviewVideo.Source = null;
-        PreviewVideo.Visibility = Visibility.Collapsed;
-
-        PlaybackOverlay.Visibility = Visibility.Collapsed;
-        PlaybackOverlay.ResetState();
-
-        EmptyStateText.Visibility = Visibility.Collapsed;
-
-        MediaPath = imagePath;
-        IsVideo = false;
-    }
-
-    public void LoadVideo(string videoPath)
-    {
-        if (string.IsNullOrWhiteSpace(videoPath))
-        {
-            throw new ArgumentException("Video path is required.", nameof(videoPath));
-        }
-
-        if (!File.Exists(videoPath))
-        {
-            throw new FileNotFoundException("Video file was not found.", videoPath);
-        }
-
-        PreviewImage.Source = null;
-        PreviewImage.Visibility = Visibility.Collapsed;
-
-        PreviewVideo.Source = new Uri(videoPath, UriKind.Absolute);
-        PreviewVideo.Visibility = Visibility.Visible;
-        PreviewVideo.Position = TimeSpan.Zero;
-
-        PlaybackOverlay.Visibility = Visibility.Visible;
-        PlaybackOverlay.Pause();
-
-        EmptyStateText.Visibility = Visibility.Collapsed;
-
-        MediaPath = videoPath;
-        IsVideo = true;
-    }
-
-    private void OnSaveClick(object sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(MediaPath) || !File.Exists(MediaPath))
-        {
-            MessageBox.Show(this, "There is no media to save.", "Save", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        var sourceExtension = Path.GetExtension(MediaPath);
-        if (string.IsNullOrWhiteSpace(sourceExtension))
-        {
-            sourceExtension = IsVideo ? ".mp4" : ".png";
-        }
-
-        var dialog = new SaveFileDialog
-        {
-            Title = IsVideo ? "Save Recording" : "Save Snip",
-            FileName = $"Flicksy_{DateTime.Now:yyyyMMdd_HHmmss}{sourceExtension}",
-            DefaultExt = sourceExtension,
-            AddExtension = true,
-            OverwritePrompt = true,
-            Filter = IsVideo
-                ? "MP4 Video (*.mp4)|*.mp4|All Files (*.*)|*.*"
-                : "PNG Image (*.png)|*.png|All Files (*.*)|*.*",
-        };
-
-        if (dialog.ShowDialog(this) != true)
-        {
-            return;
-        }
-
-        try
-        {
-            if (!string.Equals(Path.GetFullPath(dialog.FileName), Path.GetFullPath(MediaPath), StringComparison.OrdinalIgnoreCase))
-            {
-                File.Copy(MediaPath, dialog.FileName, overwrite: true);
-            }
-
-            Close();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, $"Failed to save file:\n{ex.Message}", "Save", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void OnCancelClick(object sender, RoutedEventArgs e)
-    {
-        Close();
-    }
+    public PostSnipViewModel ViewModel { get; }
 
     protected override void OnClosed(EventArgs e)
     {
         StopVideo();
+        PreviewVideo.Source = null;
+
+        ViewModel.SaveDialogRequested -= OnSaveDialogRequested;
+        ViewModel.CloseRequested -= OnCloseRequested;
+        ViewModel.ErrorOccurred -= OnErrorOccurred;
+        ViewModel.VideoLoaded -= OnVideoLoaded;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+
+        ViewModel.DeleteMediaFile();
         base.OnClosed(e);
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PostSnipViewModel.IsVideo) && !ViewModel.IsVideo)
+        {
+            StopVideo();
+            PlaybackOverlay.ResetState();
+        }
+    }
+
+    private void OnVideoLoaded(object? sender, EventArgs e)
+    {
+        PreviewVideo.Position = TimeSpan.Zero;
+        PlaybackOverlay.Pause();
+    }
+
+    private void OnSaveDialogRequested(object? sender, SaveDialogRequest request)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = request.Title,
+            FileName = request.SuggestedFileName,
+            DefaultExt = request.DefaultExtension,
+            AddExtension = true,
+            OverwritePrompt = true,
+            Filter = request.Filter,
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            request.SelectedPath = dialog.FileName;
+        }
+    }
+
+    private void OnCloseRequested(object? sender, EventArgs e)
+    {
+        Close();
+    }
+
+    private void OnErrorOccurred(object? sender, string message)
+    {
+        MessageBox.Show(this, message, "Editor", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void StopVideo()

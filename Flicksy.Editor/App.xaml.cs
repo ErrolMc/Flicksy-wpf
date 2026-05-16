@@ -1,41 +1,62 @@
-﻿using System;
+using System;
 using System.IO;
+using System.Linq;
 using System.Windows;
+using Flicksy.Editor.ViewModels;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Flicksy.Editor;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
 public partial class App : Application
 {
-    private const string AppSettingsFileName = "appsettings.json";
     private const string LaunchFilePathArgName = "--launch-file";
+
+    private IHost? _host;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        var startupWindow = new PostSnipWindow();
-        var mediaPath = ResolveStartupMediaPath(e.Args);
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddTransient<PostSnipViewModel>();
+        builder.Services.AddTransient<PostSnipWindow>();
 
-        if (!string.IsNullOrWhiteSpace(mediaPath) && File.Exists(mediaPath))
+        _host = builder.Build();
+        _host.Start();
+
+        var window = _host.Services.GetRequiredService<PostSnipWindow>();
+        var configuration = _host.Services.GetRequiredService<IConfiguration>();
+        var mediaPath = ResolveStartupMediaPath(e.Args, configuration);
+
+        if (!string.IsNullOrWhiteSpace(mediaPath))
         {
             var extension = Path.GetExtension(mediaPath).ToLowerInvariant();
-
             if (IsVideoExtension(extension))
             {
-                startupWindow.LoadVideo(mediaPath);
+                window.ViewModel.LoadVideo(mediaPath);
             }
             else
             {
-                startupWindow.LoadImage(mediaPath);
+                window.ViewModel.LoadImage(mediaPath);
             }
         }
 
-        MainWindow = startupWindow;
-        startupWindow.Show();
+        MainWindow = window;
+        window.Show();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        if (_host is not null)
+        {
+            _host.StopAsync().GetAwaiter().GetResult();
+            _host.Dispose();
+            _host = null;
+        }
+
+        base.OnExit(e);
     }
 
     private static bool IsVideoExtension(string extension)
@@ -43,7 +64,7 @@ public partial class App : Application
         return extension is ".mp4" or ".mov" or ".avi" or ".wmv" or ".mkv";
     }
 
-    private static string? ResolveStartupMediaPath(string[] args)
+    private static string? ResolveStartupMediaPath(string[] args, IConfiguration configuration)
     {
         var argumentPath = GetLaunchFilePathFromArguments(args) ?? args.FirstOrDefault();
         if (TryValidatePath(argumentPath, out var validatedFromArgs))
@@ -51,18 +72,9 @@ public partial class App : Application
             return validatedFromArgs;
         }
 
-        var configuration = BuildConfiguration();
         return TryValidatePath(configuration["LaunchEditorWithFilePath"], out var validatedFromSettings)
             ? validatedFromSettings
             : null;
-    }
-
-    private static IConfiguration BuildConfiguration()
-    {
-        return new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile(AppSettingsFileName, optional: true, reloadOnChange: false)
-            .Build();
     }
 
     private static string? GetLaunchFilePathFromArguments(string[] args)
@@ -109,5 +121,4 @@ public partial class App : Application
             return false;
         }
     }
-
 }
