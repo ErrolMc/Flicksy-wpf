@@ -1,0 +1,110 @@
+<UserControl x:Class="Flicksy.Editor.Controls.ImageEditToolsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Flicksy.Editor.ViewModels">
+    <UserControl.Resources>
+        <SolidColorBrush x:Key="ToolsPanelBackgroundBrush" Color="#1A1A1A" />
+        <SolidColorBrush x:Key="ToolsPanelBorderBrush" Color="#33FFFFFF" />
+        <SolidColorBrush x:Key="ToolButtonHoverBrush" Color="#26FFFFFF" />
+        <SolidColorBrush x:Key="ToolButtonPressedBrush" Color="#33FFFFFF" />
+        <SolidColorBrush x:Key="ToolButtonSelectedBrush" Color="#0078D4" />
+
+        <Style x:Key="ToolIconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource ToolButtonHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource ToolButtonPressedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Padding="6"
+            Background="{StaticResource ToolsPanelBackgroundBrush}"
+            BorderBrush="{StaticResource ToolsPanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10"
+            HorizontalAlignment="Stretch">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+            <Button x:Name="SelectButton"
+                    Command="{Binding SelectCommand}"
+                    ToolTip="Select"
+                    Margin="0,0,4,0">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Select}">
+                                <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Grid Width="36" Height="36">
+                    <Image Source="{Binding Cursor}" Width="30" Height="30" Stretch="Uniform" />
+                </Grid>
+            </Button>
+            <Button x:Name="PenButton"
+                    Command="{Binding PenCommand}"
+                    ToolTip="Pen"
+                    Margin="0,0,4,0">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Pen}">
+                                <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Grid Width="36" Height="36">
+                    <Image Source="{Binding PenBackground}" Width="30" Height="30" Stretch="Uniform" />
+                    <Image Source="{Binding PenForeground}" Width="30" Height="30" Stretch="Uniform" />
+                </Grid>
+            </Button>
+            <Button x:Name="EraserButton"
+                    Command="{Binding EraseCommand}"
+                    ToolTip="Eraser">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Erase}">
+                                <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Grid Width="36" Height="36">
+                    <Image Source="{Binding Eraser}" Width="30" Height="30" Stretch="Uniform" />
+                </Grid>
+            </Button>
+        </StackPanel>
+    </Border>
+</UserControl>

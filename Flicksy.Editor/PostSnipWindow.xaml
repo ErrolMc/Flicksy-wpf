@@ -90,16 +90,28 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <Button x:Name="NewButton"
                         Grid.Column="0"
                         HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
                         Style="{StaticResource SecondaryToolbarButtonStyle}"
                         Content="New"
                         Command="{Binding NewCommand}" />
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <controls:ImageEditToolsView x:Name="ImageEditToolsPanel"
+                                             Grid.Column="1"
+                                             Width="250"
+                                             VerticalAlignment="Center"
+                                             DataContext="{Binding ImageEditTools}"
+                                             Visibility="{Binding DataContext.IsImage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
+
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
                     <Button x:Name="SaveButton"
                             Style="{StaticResource PrimaryToolbarButtonStyle}"
                             Margin="0,0,8,0"

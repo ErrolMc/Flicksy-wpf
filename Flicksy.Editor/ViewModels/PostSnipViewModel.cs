@@ -26,12 +26,15 @@ public partial class PostSnipViewModel : ObservableObject
     [ObservableProperty]
     private ImageSource? imageSource;
 
-    public PostSnipViewModel(IVideoPlayer player)
+    public PostSnipViewModel(IVideoPlayer player, ImageEditToolsViewModel imageEditTools)
     {
         Player = player;
+        ImageEditTools = imageEditTools;
     }
 
     public IVideoPlayer Player { get; }
+
+    public ImageEditToolsViewModel ImageEditTools { get; }
 
     public bool PreserveMediaFile { get; set; }
 
