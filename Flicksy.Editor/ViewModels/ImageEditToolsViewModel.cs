@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -18,8 +19,13 @@ public enum ImageEditTool
 
 public partial class ImageEditToolsViewModel : ObservableObject
 {
+    private DateTime _lastPopupCloseAt = DateTime.MinValue;
+
     [ObservableProperty]
     private ImageEditTool selectedTool = ImageEditTool.Select;
+
+    [ObservableProperty]
+    private bool isPenSettingsOpen;
 
     public ImageEditToolsViewModel()
     {
@@ -37,6 +43,8 @@ public partial class ImageEditToolsViewModel : ObservableObject
 
     public ImageSource Eraser { get; }
 
+    public PenSettingsViewModel PenSettings { get; } = new();
+
     [RelayCommand]
     private void Select()
     {
@@ -46,6 +54,17 @@ public partial class ImageEditToolsViewModel : ObservableObject
     [RelayCommand]
     private void Pen()
     {
+        if (SelectedTool == ImageEditTool.Pen)
+        {
+            if ((DateTime.UtcNow - _lastPopupCloseAt).TotalMilliseconds < 250)
+            {
+                return;
+            }
+
+            IsPenSettingsOpen = !IsPenSettingsOpen;
+            return;
+        }
+
         SelectedTool = ImageEditTool.Pen;
     }
 
@@ -53,6 +72,22 @@ public partial class ImageEditToolsViewModel : ObservableObject
     private void Erase()
     {
         SelectedTool = ImageEditTool.Erase;
+    }
+
+    partial void OnSelectedToolChanged(ImageEditTool value)
+    {
+        if (value != ImageEditTool.Pen)
+        {
+            IsPenSettingsOpen = false;
+        }
+    }
+
+    partial void OnIsPenSettingsOpenChanged(bool value)
+    {
+        if (!value)
+        {
+            _lastPopupCloseAt = DateTime.UtcNow;
+        }
     }
 
     private static ImageSource BitmapToImageSource(Bitmap bitmap)
