@@ -22,6 +22,9 @@ public partial class ImageEditToolsViewModel : ObservableObject
     private DateTime _lastPopupCloseAt = DateTime.MinValue;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPenActive))]
+    [NotifyPropertyChangedFor(nameof(IsEraseActive))]
+    [NotifyPropertyChangedFor(nameof(IsDrawingToolActive))]
     private ImageEditTool selectedTool = ImageEditTool.Select;
 
     [ObservableProperty]
@@ -44,6 +47,12 @@ public partial class ImageEditToolsViewModel : ObservableObject
     public ImageSource Eraser { get; }
 
     public PenSettingsViewModel PenSettings { get; } = new();
+
+    public bool IsPenActive => SelectedTool == ImageEditTool.Pen;
+
+    public bool IsEraseActive => SelectedTool == ImageEditTool.Erase;
+
+    public bool IsDrawingToolActive => SelectedTool is ImageEditTool.Pen or ImageEditTool.Erase;
 
     [RelayCommand]
     private void Select()

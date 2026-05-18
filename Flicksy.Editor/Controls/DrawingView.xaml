@@ -1,0 +1,31 @@
+<UserControl x:Class="Flicksy.Editor.Controls.DrawingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Flicksy.Editor.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DrawingViewModel, IsDesignTimeCreatable=False}"
+             Background="Transparent"
+             MouseLeftButtonDown="OnMouseDown"
+             MouseMove="OnMouseMove"
+             MouseLeftButtonUp="OnMouseUp">
+    <ItemsControl IsHitTestVisible="False"
+                  ItemsSource="{Binding Strokes}">
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <Grid />
+            </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+            <DataTemplate>
+                <Polyline Points="{Binding Points}"
+                          Stroke="{Binding Brush}"
+                          StrokeThickness="{Binding Thickness}"
+                          StrokeLineJoin="Round"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round" />
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>

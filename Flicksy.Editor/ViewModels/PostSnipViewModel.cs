@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -26,15 +27,18 @@ public partial class PostSnipViewModel : ObservableObject
     [ObservableProperty]
     private ImageSource? imageSource;
 
-    public PostSnipViewModel(IVideoPlayer player, ImageEditToolsViewModel imageEditTools)
+    public PostSnipViewModel(IVideoPlayer player, ImageEditToolsViewModel imageEditTools, DrawingViewModel drawing)
     {
         Player = player;
         ImageEditTools = imageEditTools;
+        Drawing = drawing;
     }
 
     public IVideoPlayer Player { get; }
 
     public ImageEditToolsViewModel ImageEditTools { get; }
+
+    public DrawingViewModel Drawing { get; }
 
     public bool PreserveMediaFile { get; set; }
 
@@ -72,6 +76,7 @@ public partial class PostSnipViewModel : ObservableObject
         ImageSource = bitmap;
         IsVideo = false;
         MediaPath = imagePath;
+        Drawing.Clear();
     }
 
     public async Task LoadVideoAsync(string videoPath)
@@ -89,6 +94,7 @@ public partial class PostSnipViewModel : ObservableObject
         ImageSource = null;
         IsVideo = true;
         MediaPath = videoPath;
+        Drawing.Clear();
 
         await Player.OpenAsync(videoPath).ConfigureAwait(true);
     }
@@ -125,7 +131,11 @@ public partial class PostSnipViewModel : ObservableObject
 
         try
         {
-            if (!string.Equals(Path.GetFullPath(request.SelectedPath), Path.GetFullPath(MediaPath), StringComparison.OrdinalIgnoreCase))
+            if (IsImage && Drawing.HasStrokes && ImageSource is BitmapSource bitmapSource)
+            {
+                SaveImageWithStrokes(bitmapSource, request.SelectedPath);
+            }
+            else if (!string.Equals(Path.GetFullPath(request.SelectedPath), Path.GetFullPath(MediaPath), StringComparison.OrdinalIgnoreCase))
             {
                 File.Copy(MediaPath, request.SelectedPath, overwrite: true);
             }
@@ -136,6 +146,59 @@ public partial class PostSnipViewModel : ObservableObject
         {
             ErrorOccurred?.Invoke(this, $"Failed to save file:\n{ex.Message}");
         }
+    }
+
+    private void SaveImageWithStrokes(BitmapSource source, string destinationPath)
+    {
+        var width = source.Width;
+        var height = source.Height;
+
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawImage(source, new Rect(0, 0, width, height));
+
+            foreach (var stroke in Drawing.Strokes)
+            {
+                if (stroke.Points.Count == 0)
+                {
+                    continue;
+                }
+
+                var geometry = new StreamGeometry();
+                using (var gc = geometry.Open())
+                {
+                    gc.BeginFigure(stroke.Points[0], isFilled: false, isClosed: false);
+                    if (stroke.Points.Count > 1)
+                    {
+                        var rest = new Point[stroke.Points.Count - 1];
+                        for (var i = 1; i < stroke.Points.Count; i++)
+                        {
+                            rest[i - 1] = stroke.Points[i];
+                        }
+                        gc.PolyLineTo(rest, isStroked: true, isSmoothJoin: true);
+                    }
+                }
+                geometry.Freeze();
+
+                var pen = new Pen(stroke.Brush, stroke.Thickness)
+                {
+                    StartLineCap = PenLineCap.Round,
+                    EndLineCap = PenLineCap.Round,
+                    LineJoin = PenLineJoin.Round,
+                };
+
+                dc.DrawGeometry(null, pen, geometry);
+            }
+        }
+
+        var rtb = new RenderTargetBitmap(source.PixelWidth, source.PixelHeight, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
+        rtb.Render(visual);
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(rtb));
+        using var stream = File.Create(destinationPath);
+        encoder.Save(stream);
     }
 
     [RelayCommand]

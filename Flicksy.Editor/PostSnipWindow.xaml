@@ -126,9 +126,25 @@
         </Border>
 
         <Grid Background="#111111">
-            <Image Stretch="Uniform"
-                   Source="{Binding ImageSource}"
-                   Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}" />
+            <Viewbox Stretch="Uniform"
+                     Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Image x:Name="EditedImage"
+                           Stretch="None"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Top"
+                           Source="{Binding ImageSource}" />
+                    <controls:DrawingView DataContext="{Binding Drawing}"
+                                          Width="{Binding ElementName=EditedImage, Path=ActualWidth}"
+                                          Height="{Binding ElementName=EditedImage, Path=ActualHeight}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Top"
+                                          StrokeBrush="{Binding DataContext.ImageEditTools.PenSettings.SelectedColor.Brush, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          StrokeThickness="{Binding DataContext.ImageEditTools.PenSettings.Size, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          IsErasing="{Binding DataContext.ImageEditTools.IsEraseActive, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          IsHitTestVisible="{Binding DataContext.ImageEditTools.IsDrawingToolActive, RelativeSource={RelativeSource AncestorType=Window}}" />
+                </Grid>
+            </Viewbox>
 
             <controls:VideoSurface Player="{Binding Player}"
                                    Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}" />
