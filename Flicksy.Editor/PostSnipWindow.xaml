@@ -126,14 +126,31 @@
         </Border>
 
         <Grid Background="#111111">
-            <Viewbox Stretch="Uniform"
-                     Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}">
-                <Grid>
+            <Grid x:Name="ImageViewport"
+                  ClipToBounds="True"
+                  Background="Transparent"
+                  Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"
+                  MouseWheel="OnImageViewportMouseWheel"
+                  PreviewMouseDown="OnImageViewportPreviewMouseDown"
+                  MouseMove="OnImageViewportMouseMove"
+                  PreviewMouseUp="OnImageViewportPreviewMouseUp"
+                  SizeChanged="OnImageViewportSizeChanged">
+                <Grid x:Name="ImageContent"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Top"
+                      RenderTransformOrigin="0,0">
+                    <Grid.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform x:Name="ImageScaleTransform" ScaleX="1" ScaleY="1" />
+                            <TranslateTransform x:Name="ImageTranslateTransform" X="0" Y="0" />
+                        </TransformGroup>
+                    </Grid.RenderTransform>
                     <Image x:Name="EditedImage"
                            Stretch="None"
                            HorizontalAlignment="Left"
                            VerticalAlignment="Top"
-                           Source="{Binding ImageSource}" />
+                           Source="{Binding ImageSource}"
+                           SizeChanged="OnEditedImageSizeChanged" />
                     <controls:DrawingView DataContext="{Binding Drawing}"
                                           Width="{Binding ElementName=EditedImage, Path=ActualWidth}"
                                           Height="{Binding ElementName=EditedImage, Path=ActualHeight}"
@@ -144,7 +161,7 @@
                                           IsErasing="{Binding DataContext.ImageEditTools.IsEraseActive, RelativeSource={RelativeSource AncestorType=Window}}"
                                           IsHitTestVisible="{Binding DataContext.ImageEditTools.IsDrawingToolActive, RelativeSource={RelativeSource AncestorType=Window}}" />
                 </Grid>
-            </Viewbox>
+            </Grid>
 
             <controls:VideoSurface Player="{Binding Player}"
                                    Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}" />

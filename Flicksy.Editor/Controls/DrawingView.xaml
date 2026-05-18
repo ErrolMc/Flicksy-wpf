@@ -7,6 +7,7 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:DrawingViewModel, IsDesignTimeCreatable=False}"
              Background="Transparent"
+             ClipToBounds="True"
              MouseLeftButtonDown="OnMouseDown"
              MouseMove="OnMouseMove"
              MouseLeftButtonUp="OnMouseUp">
