@@ -54,6 +54,8 @@ public partial class DrawingView : UserControl
 
     public DrawingViewModel? ViewModel => DataContext as DrawingViewModel;
 
+    private Point? _lastAppendedPoint;
+
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (ViewModel is null || !TryGetPoint(e, clampToBounds: false, out var point))
@@ -70,6 +72,7 @@ public partial class DrawingView : UserControl
         }
 
         ViewModel.BeginStroke(point, StrokeBrush, StrokeThickness);
+        _lastAppendedPoint = point;
         CaptureMouse();
         e.Handled = true;
     }
@@ -87,7 +90,19 @@ public partial class DrawingView : UserControl
             return;
         }
 
+        if (_lastAppendedPoint is Point lastPoint)
+        {
+            var minDistance = Math.Max(0.75d, StrokeThickness * 0.2d);
+            var dx = point.X - lastPoint.X;
+            var dy = point.Y - lastPoint.Y;
+            if ((dx * dx) + (dy * dy) < (minDistance * minDistance))
+            {
+                return;
+            }
+        }
+
         ViewModel.AppendPoint(point);
+        _lastAppendedPoint = point;
     }
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
@@ -100,6 +115,7 @@ public partial class DrawingView : UserControl
             }
 
             ReleaseMouseCapture();
+            _lastAppendedPoint = null;
             return;
         }
 
@@ -110,6 +126,7 @@ public partial class DrawingView : UserControl
 
         ViewModel?.EndStroke();
         ReleaseMouseCapture();
+        _lastAppendedPoint = null;
     }
 
     private bool TryGetPoint(MouseEventArgs e, bool clampToBounds, out Point point)

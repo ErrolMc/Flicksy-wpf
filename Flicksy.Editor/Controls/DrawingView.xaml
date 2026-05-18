@@ -19,12 +19,14 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
             <DataTemplate>
-                <Polyline Points="{Binding Points}"
-                          Stroke="{Binding Brush}"
-                          StrokeThickness="{Binding Thickness}"
-                          StrokeLineJoin="Round"
-                          StrokeStartLineCap="Round"
-                          StrokeEndLineCap="Round" />
+                <Path Data="{Binding Geometry}"
+                      Stroke="{Binding Brush}"
+                      StrokeThickness="{Binding Thickness}"
+                      StrokeLineJoin="Round"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      SnapsToDevicePixels="False"
+                      UseLayoutRounding="False" />
             </DataTemplate>
         </ItemsControl.ItemTemplate>
     </ItemsControl>

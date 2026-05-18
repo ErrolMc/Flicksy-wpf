@@ -160,26 +160,10 @@ public partial class PostSnipViewModel : ObservableObject
 
             foreach (var stroke in Drawing.Strokes)
             {
-                if (stroke.Points.Count == 0)
+                if (stroke.Geometry == Geometry.Empty)
                 {
                     continue;
                 }
-
-                var geometry = new StreamGeometry();
-                using (var gc = geometry.Open())
-                {
-                    gc.BeginFigure(stroke.Points[0], isFilled: false, isClosed: false);
-                    if (stroke.Points.Count > 1)
-                    {
-                        var rest = new Point[stroke.Points.Count - 1];
-                        for (var i = 1; i < stroke.Points.Count; i++)
-                        {
-                            rest[i - 1] = stroke.Points[i];
-                        }
-                        gc.PolyLineTo(rest, isStroked: true, isSmoothJoin: true);
-                    }
-                }
-                geometry.Freeze();
 
                 var pen = new Pen(stroke.Brush, stroke.Thickness)
                 {
@@ -188,7 +172,7 @@ public partial class PostSnipViewModel : ObservableObject
                     LineJoin = PenLineJoin.Round,
                 };
 
-                dc.DrawGeometry(null, pen, geometry);
+                dc.DrawGeometry(null, pen, stroke.Geometry);
             }
         }
 
