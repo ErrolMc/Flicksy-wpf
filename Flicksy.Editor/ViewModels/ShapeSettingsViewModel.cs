@@ -44,17 +44,17 @@ public partial class ShapeSettingsViewModel : ObservableObject
     public bool IsFillEnabled => SelectedShape?.Kind is not (ShapeKind.Line or ShapeKind.Arrow);
 
     [ObservableProperty]
-    private Brush fillBrush = CreateBrush(Colors.Black);
+    private bool isFillSettingsOpen;
 
     [ObservableProperty]
-    private Brush outlineBrush = CreateBrush(Colors.Black);
+    private bool isOutlineSettingsOpen;
 
-    public double MinStrokeWidth { get; } = 1;
+    private DateTime _lastFillPopupCloseAt = DateTime.MinValue;
+    private DateTime _lastOutlinePopupCloseAt = DateTime.MinValue;
 
-    public double MaxStrokeWidth { get; } = 30;
+    public FillSettingsViewModel FillSettings { get; } = new();
 
-    [ObservableProperty]
-    private double strokeWidth = 4;
+    public OutlineSettingsViewModel OutlineSettings { get; } = new();
 
     public ObservableCollection<ShapeOption> Shapes { get; }
 
@@ -72,11 +72,42 @@ public partial class ShapeSettingsViewModel : ObservableObject
         SelectShape(Shapes[0]);
     }
 
-    private static Brush CreateBrush(Color color)
+    [RelayCommand]
+    private void ToggleFillSettings()
     {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
+        if ((DateTime.UtcNow - _lastFillPopupCloseAt).TotalMilliseconds < 250)
+        {
+            return;
+        }
+
+        IsFillSettingsOpen = !IsFillSettingsOpen;
+    }
+
+    partial void OnIsFillSettingsOpenChanged(bool value)
+    {
+        if (!value)
+        {
+            _lastFillPopupCloseAt = DateTime.UtcNow;
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleOutlineSettings()
+    {
+        if ((DateTime.UtcNow - _lastOutlinePopupCloseAt).TotalMilliseconds < 250)
+        {
+            return;
+        }
+
+        IsOutlineSettingsOpen = !IsOutlineSettingsOpen;
+    }
+
+    partial void OnIsOutlineSettingsOpenChanged(bool value)
+    {
+        if (!value)
+        {
+            _lastOutlinePopupCloseAt = DateTime.UtcNow;
+        }
     }
 
     [RelayCommand]
