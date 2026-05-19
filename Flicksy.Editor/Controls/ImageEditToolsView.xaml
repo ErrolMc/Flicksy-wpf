@@ -11,8 +11,8 @@
         <SolidColorBrush x:Key="ToolButtonSelectedBrush" Color="#0078D4" />
 
         <Style x:Key="ToolIconButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="44" />
-            <Setter Property="Height" Value="44" />
+            <Setter Property="Width" Value="38" />
+            <Setter Property="Height" Value="38" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="2" />
@@ -48,11 +48,8 @@
         </Style>
     </UserControl.Resources>
 
-    <Border Padding="6"
-            Background="{StaticResource ToolsPanelBackgroundBrush}"
-            BorderBrush="{StaticResource ToolsPanelBorderBrush}"
-            BorderThickness="1"
-            CornerRadius="10"
+    <Border Background="Transparent"
+            BorderThickness="0"
             HorizontalAlignment="Stretch">
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
             <Button x:Name="SelectButton"
@@ -68,8 +65,8 @@
                         </Style.Triggers>
                     </Style>
                 </Button.Style>
-                <Grid Width="36" Height="36">
-                    <Image Source="{Binding Cursor}" Width="30" Height="30" Stretch="Uniform" />
+                <Grid Width="28" Height="28">
+                    <Image Source="{Binding Cursor}" Width="28" Height="28" Stretch="Uniform" />
                 </Grid>
             </Button>
             <Button x:Name="PenButton"
@@ -85,9 +82,9 @@
                         </Style.Triggers>
                     </Style>
                 </Button.Style>
-                <Grid Width="36" Height="36">
-                    <Image Source="{Binding PenBackground}" Width="30" Height="30" Stretch="Uniform" />
-                    <Rectangle Width="30" Height="30"
+                <Grid Width="28" Height="28">
+                    <Image Source="{Binding PenBackground}" Width="28" Height="28" Stretch="Uniform" />
+                    <Rectangle Width="28" Height="28"
                                Fill="{Binding PenSettings.SelectedColor.Brush, FallbackValue=Black}">
                         <Rectangle.OpacityMask>
                             <ImageBrush ImageSource="{Binding PenForeground}" Stretch="Uniform" />
@@ -106,7 +103,8 @@
             </Popup>
             <Button x:Name="EraserButton"
                     Command="{Binding EraseCommand}"
-                    ToolTip="Eraser">
+                    ToolTip="Eraser"
+                    Margin="0,0,4,0">
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
                         <Style.Triggers>
@@ -116,10 +114,36 @@
                         </Style.Triggers>
                     </Style>
                 </Button.Style>
-                <Grid Width="36" Height="36">
-                    <Image Source="{Binding Eraser}" Width="30" Height="30" Stretch="Uniform" />
+                <Grid Width="28" Height="28">
+                    <Image Source="{Binding Eraser}" Width="28" Height="28" Stretch="Uniform" />
                 </Grid>
             </Button>
+            <Button x:Name="ShapesButton"
+                    Command="{Binding ShapesToolCommand}"
+                    ToolTip="Shapes">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Shapes}">
+                                <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Grid Width="28" Height="28">
+                    <Image Source="{Binding Shapes}" Width="28" Height="28" Stretch="Uniform" />
+                </Grid>
+            </Button>
+            <Popup x:Name="ShapeSettingsPopup"
+                   PlacementTarget="{Binding ElementName=ShapesButton}"
+                   Placement="Bottom"
+                   VerticalOffset="6"
+                   StaysOpen="False"
+                   AllowsTransparency="True"
+                   IsOpen="{Binding IsShapeSettingsOpen, Mode=TwoWay}"
+                   Opened="OnShapeSettingsPopupOpened">
+                <controls:ShapeSettingsView DataContext="{Binding ShapeSettings}" />
+            </Popup>
         </StackPanel>
     </Border>
 </UserControl>

@@ -1,11 +1,8 @@
 using System;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Flicksy.Editor.Extensions;
 using Flicksy.Editor.Properties;
 
 namespace Flicksy.Editor.ViewModels;
@@ -15,6 +12,7 @@ public enum ImageEditTool
     Select,
     Pen,
     Erase,
+    Shapes,
 }
 
 public partial class ImageEditToolsViewModel : ObservableObject
@@ -32,12 +30,18 @@ public partial class ImageEditToolsViewModel : ObservableObject
     [ObservableProperty]
     private bool isPenSettingsOpen;
 
+    [ObservableProperty]
+    private bool isShapeSettingsOpen;
+
+    private DateTime _lastShapePopupCloseAt = DateTime.MinValue;
+
     public ImageEditToolsViewModel()
     {
-        Cursor = BitmapToImageSource(Resources.cursor);
-        PenBackground = BitmapToImageSource(Resources.pen_background);
-        PenForeground = BitmapToImageSource(Resources.pen_foreground);
-        Eraser = BitmapToImageSource(Resources.eraser);
+        Cursor = Resources.cursor.ToImageSource();
+        PenBackground = Resources.pen_background.ToImageSource();
+        PenForeground = Resources.pen_foreground.ToImageSource();
+        Eraser = Resources.eraser.ToImageSource();
+        Shapes = Resources.shapes.ToImageSource();
     }
 
     public ImageSource Cursor { get; }
@@ -48,7 +52,11 @@ public partial class ImageEditToolsViewModel : ObservableObject
 
     public ImageSource Eraser { get; }
 
+    public ImageSource Shapes { get; }
+
     public PenSettingsViewModel PenSettings { get; } = new();
+
+    public ShapeSettingsViewModel ShapeSettings { get; } = new();
 
     public bool IsPenActive => SelectedTool == ImageEditTool.Pen;
 
@@ -89,11 +97,34 @@ public partial class ImageEditToolsViewModel : ObservableObject
         SelectedTool = ImageEditTool.Erase;
     }
 
+    [RelayCommand]
+    private void ShapesTool()
+    {
+        if (SelectedTool == ImageEditTool.Shapes)
+        {
+            if ((DateTime.UtcNow - _lastShapePopupCloseAt).TotalMilliseconds < 250)
+            {
+                return;
+            }
+
+            IsShapeSettingsOpen = !IsShapeSettingsOpen;
+            return;
+        }
+
+        SelectedTool = ImageEditTool.Shapes;
+        IsShapeSettingsOpen = true;
+    }
+
     partial void OnSelectedToolChanged(ImageEditTool value)
     {
         if (value != ImageEditTool.Pen)
         {
             IsPenSettingsOpen = false;
+        }
+
+        if (value != ImageEditTool.Shapes)
+        {
+            IsShapeSettingsOpen = false;
         }
     }
 
@@ -105,18 +136,12 @@ public partial class ImageEditToolsViewModel : ObservableObject
         }
     }
 
-    private static ImageSource BitmapToImageSource(Bitmap bitmap)
+    partial void OnIsShapeSettingsOpenChanged(bool value)
     {
-        using var stream = new MemoryStream();
-        bitmap.Save(stream, ImageFormat.Png);
-        stream.Position = 0;
-
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.CacheOption = BitmapCacheOption.OnLoad;
-        image.StreamSource = stream;
-        image.EndInit();
-        image.Freeze();
-        return image;
+        if (!value)
+        {
+            _lastShapePopupCloseAt = DateTime.UtcNow;
+        }
     }
+
 }

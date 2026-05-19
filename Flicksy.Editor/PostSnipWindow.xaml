@@ -105,6 +105,7 @@
                                              Grid.Column="1"
                                              Width="250"
                                              VerticalAlignment="Center"
+                                             Margin="0,-3"
                                              DataContext="{Binding ImageEditTools}"
                                              Visibility="{Binding DataContext.IsImage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
 
