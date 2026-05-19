@@ -29,6 +29,13 @@ public partial class DrawingView : UserControl
             typeof(DrawingView),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty IsSelectActiveProperty =
+        DependencyProperty.Register(
+            nameof(IsSelectActive),
+            typeof(bool),
+            typeof(DrawingView),
+            new PropertyMetadata(false));
+
     public DrawingView()
     {
         InitializeComponent();
@@ -52,14 +59,53 @@ public partial class DrawingView : UserControl
         set => SetValue(IsErasingProperty, value);
     }
 
+    public bool IsSelectActive
+    {
+        get => (bool)GetValue(IsSelectActiveProperty);
+        set => SetValue(IsSelectActiveProperty, value);
+    }
+
     public DrawingViewModel? ViewModel => DataContext as DrawingViewModel;
 
     private Point? _lastAppendedPoint;
+    private Stroke? _draggingStroke;
+    private Point _lastDragPoint;
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (ViewModel is null || !TryGetPoint(e, clampToBounds: false, out var point))
         {
+            return;
+        }
+
+        if (IsSelectActive)
+        {
+            var hit = HitTestStroke(point);
+            if (hit is not null)
+            {
+                if (hit == ViewModel.SelectedStroke)
+                {
+                    _draggingStroke = hit;
+                    _lastDragPoint = point;
+                    CaptureMouse();
+                }
+                else
+                {
+                    ViewModel.SelectedStroke = hit;
+                }
+            }
+            else if (ViewModel.SelectedStroke is { } selected && IsInsideSelectionBounds(selected, point))
+            {
+                _draggingStroke = selected;
+                _lastDragPoint = point;
+                CaptureMouse();
+            }
+            else
+            {
+                ViewModel.SelectedStroke = null;
+            }
+
+            e.Handled = true;
             return;
         }
 
@@ -77,9 +123,45 @@ public partial class DrawingView : UserControl
         e.Handled = true;
     }
 
+    private Stroke? HitTestStroke(Point point)
+    {
+        if (ViewModel is null)
+        {
+            return null;
+        }
+
+        for (var i = ViewModel.Strokes.Count - 1; i >= 0; i--)
+        {
+            var stroke = ViewModel.Strokes[i];
+            if (IntersectsStroke(stroke, point))
+            {
+                return stroke;
+            }
+        }
+
+        return null;
+    }
+
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
-        if (ViewModel is null || e.LeftButton != MouseButtonState.Pressed || !TryGetPoint(e, clampToBounds: true, out var point))
+        if (ViewModel is null || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        if (_draggingStroke is not null)
+        {
+            var current = e.GetPosition(this);
+            var delta = current - _lastDragPoint;
+            if (delta.X != 0 || delta.Y != 0)
+            {
+                _draggingStroke.Translate(delta);
+                _lastDragPoint = current;
+            }
+            return;
+        }
+
+        if (!TryGetPoint(e, clampToBounds: true, out var point))
         {
             return;
         }
@@ -107,6 +189,14 @@ public partial class DrawingView : UserControl
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
+        if (_draggingStroke is not null)
+        {
+            _draggingStroke = null;
+            ReleaseMouseCapture();
+            e.Handled = true;
+            return;
+        }
+
         if (IsErasing)
         {
             if (ViewModel is not null && TryGetPoint(e, clampToBounds: true, out var erasePoint))
@@ -169,6 +259,19 @@ public partial class DrawingView : UserControl
                 return;
             }
         }
+    }
+
+    private static bool IsInsideSelectionBounds(Stroke stroke, Point point)
+    {
+        if (stroke.Geometry.Bounds.IsEmpty)
+        {
+            return false;
+        }
+
+        var bounds = stroke.Geometry.Bounds;
+        var inflate = stroke.Thickness / 2d;
+        bounds.Inflate(inflate, inflate);
+        return bounds.Contains(point);
     }
 
     private static bool IntersectsStroke(Stroke stroke, Point point)

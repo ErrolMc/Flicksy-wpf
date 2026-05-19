@@ -32,6 +32,31 @@ public partial class PostSnipViewModel : ObservableObject
         Player = player;
         ImageEditTools = imageEditTools;
         Drawing = drawing;
+        SelectionOverlay = new SelectionOverlayViewModel
+        {
+            SelectedStroke = drawing.SelectedStroke,
+            IsActive = imageEditTools.IsSelectActive,
+        };
+
+        drawing.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(DrawingViewModel.SelectedStroke))
+            {
+                SelectionOverlay.SelectedStroke = drawing.SelectedStroke;
+            }
+        };
+
+        imageEditTools.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ImageEditToolsViewModel.IsSelectActive))
+            {
+                SelectionOverlay.IsActive = imageEditTools.IsSelectActive;
+                if (!imageEditTools.IsSelectActive)
+                {
+                    drawing.SelectedStroke = null;
+                }
+            }
+        };
     }
 
     public IVideoPlayer Player { get; }
@@ -39,6 +64,8 @@ public partial class PostSnipViewModel : ObservableObject
     public ImageEditToolsViewModel ImageEditTools { get; }
 
     public DrawingViewModel Drawing { get; }
+
+    public SelectionOverlayViewModel SelectionOverlay { get; }
 
     public bool PreserveMediaFile { get; set; }
 

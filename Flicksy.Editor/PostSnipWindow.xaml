@@ -159,8 +159,12 @@
                                           StrokeBrush="{Binding DataContext.ImageEditTools.PenSettings.SelectedColor.Brush, RelativeSource={RelativeSource AncestorType=Window}}"
                                           StrokeThickness="{Binding DataContext.ImageEditTools.PenSettings.Size, RelativeSource={RelativeSource AncestorType=Window}}"
                                           IsErasing="{Binding DataContext.ImageEditTools.IsEraseActive, RelativeSource={RelativeSource AncestorType=Window}}"
-                                          IsHitTestVisible="{Binding DataContext.ImageEditTools.IsDrawingToolActive, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                          IsSelectActive="{Binding DataContext.ImageEditTools.IsSelectActive, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          IsHitTestVisible="{Binding DataContext.ImageEditTools.IsImageToolActive, RelativeSource={RelativeSource AncestorType=Window}}" />
                 </Grid>
+                <controls:SelectionOverlayView DataContext="{Binding SelectionOverlay}"
+                                               ContentToViewport="{Binding ElementName=ImageContent, Path=RenderTransform}"
+                                               Panel.ZIndex="5" />
             </Grid>
 
             <controls:VideoSurface Player="{Binding Player}"

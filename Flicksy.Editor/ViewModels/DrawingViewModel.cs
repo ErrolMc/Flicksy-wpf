@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -39,6 +40,23 @@ public sealed class Stroke : ObservableObject
         {
             point,
         };
+
+        Points = updated;
+        Geometry = BuildGeometry(updated);
+    }
+
+    public void Translate(Vector delta)
+    {
+        if (Points.Count == 0)
+        {
+            return;
+        }
+
+        var updated = new PointCollection(Points.Count);
+        foreach (var p in Points)
+        {
+            updated.Add(new Point(p.X + delta.X, p.Y + delta.Y));
+        }
 
         Points = updated;
         Geometry = BuildGeometry(updated);
@@ -153,6 +171,14 @@ public partial class DrawingViewModel : ObservableObject
 {
     private Stroke? _current;
 
+    [ObservableProperty]
+    private Stroke? selectedStroke;
+
+    public DrawingViewModel()
+    {
+        Strokes.CollectionChanged += OnStrokesChanged;
+    }
+
     public ObservableCollection<Stroke> Strokes { get; } = new();
 
     public bool HasStrokes => Strokes.Count > 0;
@@ -177,6 +203,25 @@ public partial class DrawingViewModel : ObservableObject
     public void Clear()
     {
         _current = null;
+        SelectedStroke = null;
         Strokes.Clear();
+    }
+
+    private void OnStrokesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (SelectedStroke is null)
+        {
+            return;
+        }
+
+        if (e.Action == NotifyCollectionChangedAction.Remove ||
+            e.Action == NotifyCollectionChangedAction.Replace ||
+            e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            if (!Strokes.Contains(SelectedStroke))
+            {
+                SelectedStroke = null;
+            }
+        }
     }
 }

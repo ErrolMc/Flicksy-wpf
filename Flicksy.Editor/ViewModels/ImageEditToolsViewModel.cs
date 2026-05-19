@@ -24,7 +24,9 @@ public partial class ImageEditToolsViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPenActive))]
     [NotifyPropertyChangedFor(nameof(IsEraseActive))]
+    [NotifyPropertyChangedFor(nameof(IsSelectActive))]
     [NotifyPropertyChangedFor(nameof(IsDrawingToolActive))]
+    [NotifyPropertyChangedFor(nameof(IsImageToolActive))]
     private ImageEditTool selectedTool = ImageEditTool.Select;
 
     [ObservableProperty]
@@ -52,7 +54,11 @@ public partial class ImageEditToolsViewModel : ObservableObject
 
     public bool IsEraseActive => SelectedTool == ImageEditTool.Erase;
 
+    public bool IsSelectActive => SelectedTool == ImageEditTool.Select;
+
     public bool IsDrawingToolActive => SelectedTool is ImageEditTool.Pen or ImageEditTool.Erase;
+
+    public bool IsImageToolActive => SelectedTool is ImageEditTool.Pen or ImageEditTool.Erase or ImageEditTool.Select;
 
     [RelayCommand]
     private void Select()
