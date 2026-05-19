@@ -135,34 +135,37 @@
                   MouseMove="OnImageViewportMouseMove"
                   PreviewMouseUp="OnImageViewportPreviewMouseUp"
                   SizeChanged="OnImageViewportSizeChanged">
-                <Grid x:Name="ImageContent"
-                      HorizontalAlignment="Left"
-                      VerticalAlignment="Top"
-                      RenderTransformOrigin="0,0">
-                    <Grid.RenderTransform>
+                <!--
+                    Canvas (not Grid) so the image renders at its natural pixel size and
+                    is not clipped by the viewport's layout slot. The pan/zoom RenderTransform
+                    is responsible for fitting it visually.
+                -->
+                <Canvas x:Name="ImageContent"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Width="{Binding ElementName=EditedImage, Path=ActualWidth}"
+                        Height="{Binding ElementName=EditedImage, Path=ActualHeight}"
+                        RenderTransformOrigin="0,0">
+                    <Canvas.RenderTransform>
                         <TransformGroup>
                             <ScaleTransform x:Name="ImageScaleTransform" ScaleX="1" ScaleY="1" />
                             <TranslateTransform x:Name="ImageTranslateTransform" X="0" Y="0" />
                         </TransformGroup>
-                    </Grid.RenderTransform>
+                    </Canvas.RenderTransform>
                     <Image x:Name="EditedImage"
                            Stretch="None"
-                           HorizontalAlignment="Left"
-                           VerticalAlignment="Top"
                            Source="{Binding ImageSource}"
                            SizeChanged="OnEditedImageSizeChanged" />
                     <controls:DrawingView DataContext="{Binding Drawing}"
                                           Width="{Binding ElementName=EditedImage, Path=ActualWidth}"
                                           Height="{Binding ElementName=EditedImage, Path=ActualHeight}"
-                                          HorizontalAlignment="Left"
-                                          VerticalAlignment="Top"
                                           StrokeBrush="{Binding DataContext.ImageEditTools.PenSettings.SelectedColor.Brush, RelativeSource={RelativeSource AncestorType=Window}}"
                                           StrokeThickness="{Binding DataContext.ImageEditTools.PenSettings.Size, RelativeSource={RelativeSource AncestorType=Window}}"
                                           IsErasing="{Binding DataContext.ImageEditTools.IsEraseActive, RelativeSource={RelativeSource AncestorType=Window}}"
                                           IsSelectActive="{Binding DataContext.ImageEditTools.IsSelectActive, RelativeSource={RelativeSource AncestorType=Window}}"
                                           ContentScale="{Binding ElementName=ImageScaleTransform, Path=ScaleX}"
                                           IsHitTestVisible="{Binding DataContext.ImageEditTools.IsImageToolActive, RelativeSource={RelativeSource AncestorType=Window}}" />
-                </Grid>
+                </Canvas>
                 <controls:SelectionOverlayView DataContext="{Binding SelectionOverlay}"
                                                ContentToViewport="{Binding ElementName=ImageContent, Path=RenderTransform}"
                                                Panel.ZIndex="5" />
