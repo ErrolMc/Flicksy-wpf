@@ -199,7 +199,9 @@ public partial class PostSnipViewModel : ObservableObject
                     LineJoin = PenLineJoin.Round,
                 };
 
+                dc.PushTransform(stroke.Transform);
                 dc.DrawGeometry(null, pen, stroke.Geometry);
+                dc.Pop();
             }
         }
 

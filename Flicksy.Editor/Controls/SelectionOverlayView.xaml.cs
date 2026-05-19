@@ -1,8 +1,10 @@
+using System;
 using System.ComponentModel;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
@@ -17,6 +19,12 @@ public partial class SelectionOverlayView : UserControl
     private const double RotateHandleGap = 18.0;
 
     private static readonly ImageSource RotateIconSource = LoadRotateIcon();
+
+    private Stroke? _rotatingStroke;
+    private Matrix _rotationBaseMatrix;
+    private Point _rotationCenterWorld;
+    private Point _rotationCenterViewport;
+    private double _rotationInitialAngle;
 
     public static readonly DependencyProperty ContentToViewportProperty =
         DependencyProperty.Register(
@@ -57,29 +65,36 @@ public partial class SelectionOverlayView : UserControl
         view.UpdateLayoutFromState();
     }
 
-    private void OnTransformChanged(object? sender, System.EventArgs e)
+    private void OnTransformChanged(object? sender, EventArgs e)
     {
         UpdateLayoutFromState();
     }
 
     private void OnDataContextChanged(object? sender, DependencyPropertyChangedEventArgs e)
     {
-        if (e.OldValue is INotifyPropertyChanged oldVm)
+        if (e.OldValue is SelectionOverlayViewModel oldVm)
         {
             oldVm.PropertyChanged -= OnViewModelPropertyChanged;
+            oldVm.TransformChanged -= OnVmTransformChanged;
         }
 
-        if (e.NewValue is INotifyPropertyChanged newVm)
+        if (e.NewValue is SelectionOverlayViewModel newVm)
         {
             newVm.PropertyChanged += OnViewModelPropertyChanged;
+            newVm.TransformChanged += OnVmTransformChanged;
         }
 
         UpdateLayoutFromState();
     }
 
+    private void OnVmTransformChanged(object? sender, EventArgs e)
+    {
+        UpdateLayoutFromState();
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(SelectionOverlayViewModel.ContentBounds)
+        if (e.PropertyName is nameof(SelectionOverlayViewModel.CanonicalBounds)
             or nameof(SelectionOverlayViewModel.IsVisible)
             or nameof(SelectionOverlayViewModel.SelectedStroke)
             or nameof(SelectionOverlayViewModel.IsActive))
@@ -91,7 +106,7 @@ public partial class SelectionOverlayView : UserControl
     private void UpdateLayoutFromState()
     {
         var vm = ViewModel;
-        if (vm is null || !vm.IsVisible)
+        if (vm is null || !vm.IsVisible || vm.SelectedStroke is not { } stroke)
         {
             Visibility = Visibility.Collapsed;
             return;
@@ -99,47 +114,109 @@ public partial class SelectionOverlayView : UserControl
 
         Visibility = Visibility.Visible;
 
-        var bounds = vm.ContentBounds;
-        var transform = ContentToViewport;
+        var canonical = vm.CanonicalBounds;
+        var strokeMatrix = stroke.Transform.Matrix;
+        var viewportTransform = ContentToViewport;
 
-        var topLeft = new Point(bounds.X, bounds.Y);
-        var topRight = new Point(bounds.X + bounds.Width, bounds.Y);
-        var bottomLeft = new Point(bounds.X, bounds.Y + bounds.Height);
-        var bottomRight = new Point(bounds.X + bounds.Width, bounds.Y + bounds.Height);
+        var tlVp = ProjectCorner(canonical.Left, canonical.Top, strokeMatrix, viewportTransform);
+        var trVp = ProjectCorner(canonical.Right, canonical.Top, strokeMatrix, viewportTransform);
+        var brVp = ProjectCorner(canonical.Right, canonical.Bottom, strokeMatrix, viewportTransform);
+        var blVp = ProjectCorner(canonical.Left, canonical.Bottom, strokeMatrix, viewportTransform);
 
-        if (transform is not null)
-        {
-            topLeft = transform.Transform(topLeft);
-            topRight = transform.Transform(topRight);
-            bottomLeft = transform.Transform(bottomLeft);
-            bottomRight = transform.Transform(bottomRight);
-        }
+        SelectionBox.Points = new PointCollection { tlVp, trVp, brVp, blVp };
 
-        var minX = System.Math.Min(System.Math.Min(topLeft.X, topRight.X), System.Math.Min(bottomLeft.X, bottomRight.X));
-        var minY = System.Math.Min(System.Math.Min(topLeft.Y, topRight.Y), System.Math.Min(bottomLeft.Y, bottomRight.Y));
-        var maxX = System.Math.Max(System.Math.Max(topLeft.X, topRight.X), System.Math.Max(bottomLeft.X, bottomRight.X));
-        var maxY = System.Math.Max(System.Math.Max(topLeft.Y, topRight.Y), System.Math.Max(bottomLeft.Y, bottomRight.Y));
+        PositionHandle(HandleTopLeft, tlVp);
+        PositionHandle(HandleTopRight, trVp);
+        PositionHandle(HandleBottomLeft, blVp);
+        PositionHandle(HandleBottomRight, brVp);
 
-        SelectionBox.Width = System.Math.Max(0, maxX - minX);
-        SelectionBox.Height = System.Math.Max(0, maxY - minY);
-        Canvas.SetLeft(SelectionBox, minX);
-        Canvas.SetTop(SelectionBox, minY);
+        // Rotate puck: midpoint of top edge in viewport space, offset perpendicular to that edge.
+        var topMid = new Point((tlVp.X + trVp.X) / 2.0, (tlVp.Y + trVp.Y) / 2.0);
+        var topEdge = new Vector(trVp.X - tlVp.X, trVp.Y - tlVp.Y);
+        var len = topEdge.Length;
+        Vector outward = len > double.Epsilon
+            ? new Vector(topEdge.Y / len, -topEdge.X / len)   // 90° CW of top-edge direction = outward "up"
+            : new Vector(0, -1);
 
-        PositionHandle(HandleTopLeft, topLeft);
-        PositionHandle(HandleTopRight, topRight);
-        PositionHandle(HandleBottomLeft, bottomLeft);
-        PositionHandle(HandleBottomRight, bottomRight);
+        var puckOffset = RotateHandleGap + RotateHandleSize / 2.0;
+        var puckCenter = topMid + outward * puckOffset;
+        Canvas.SetLeft(RotateHandle, puckCenter.X - RotateHandleSize / 2.0);
+        Canvas.SetTop(RotateHandle, puckCenter.Y - RotateHandleSize / 2.0);
+    }
 
-        var topMidX = (topLeft.X + topRight.X) / 2.0;
-        var topMidY = (topLeft.Y + topRight.Y) / 2.0;
-        Canvas.SetLeft(RotateHandle, topMidX - RotateHandleSize / 2.0);
-        Canvas.SetTop(RotateHandle, topMidY - RotateHandleGap - RotateHandleSize);
+    private static Point ProjectCorner(double x, double y, Matrix strokeMatrix, Transform? viewportTransform)
+    {
+        var content = strokeMatrix.Transform(new Point(x, y));
+        return viewportTransform is not null
+            ? viewportTransform.Transform(content)
+            : content;
     }
 
     private static void PositionHandle(Ellipse handle, Point point)
     {
         Canvas.SetLeft(handle, point.X - HandleRadius);
         Canvas.SetTop(handle, point.Y - HandleRadius);
+    }
+
+    private void OnRotateHandleMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (ViewModel is not { } vm || vm.SelectedStroke is not { } stroke || vm.CanonicalBounds.IsEmpty)
+        {
+            return;
+        }
+
+        var canonical = vm.CanonicalBounds;
+        var canonicalCenter = new Point(
+            canonical.X + canonical.Width / 2.0,
+            canonical.Y + canonical.Height / 2.0);
+
+        var strokeMatrix = stroke.Transform.Matrix;
+        var centerWorld = strokeMatrix.Transform(canonicalCenter);
+
+        var viewportTransform = ContentToViewport;
+        var centerViewport = viewportTransform is not null
+            ? viewportTransform.Transform(centerWorld)
+            : centerWorld;
+
+        var cursor = e.GetPosition(this);
+
+        _rotatingStroke = stroke;
+        _rotationBaseMatrix = strokeMatrix;
+        _rotationCenterWorld = centerWorld;
+        _rotationCenterViewport = centerViewport;
+        _rotationInitialAngle = Math.Atan2(cursor.Y - centerViewport.Y, cursor.X - centerViewport.X);
+
+        CaptureMouse();
+        e.Handled = true;
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+
+        if (_rotatingStroke is null)
+        {
+            return;
+        }
+
+        var cursor = e.GetPosition(this);
+        var currentAngle = Math.Atan2(cursor.Y - _rotationCenterViewport.Y, cursor.X - _rotationCenterViewport.X);
+        var deltaDegrees = (currentAngle - _rotationInitialAngle) * 180.0 / Math.PI;
+        _rotatingStroke.RotateFrom(_rotationBaseMatrix, deltaDegrees, _rotationCenterWorld);
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+
+        if (_rotatingStroke is null)
+        {
+            return;
+        }
+
+        _rotatingStroke = null;
+        ReleaseMouseCapture();
+        e.Handled = true;
     }
 
     private static ImageSource LoadRotateIcon()

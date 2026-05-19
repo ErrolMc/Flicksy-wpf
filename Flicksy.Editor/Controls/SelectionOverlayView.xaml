@@ -6,43 +6,50 @@
              xmlns:vm="clr-namespace:Flicksy.Editor.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:SelectionOverlayViewModel, IsDesignTimeCreatable=False}"
-             IsHitTestVisible="False"
-             Background="Transparent">
-    <Canvas x:Name="OverlayCanvas">
-        <Rectangle x:Name="SelectionBox"
-                   Stroke="#B0B0B0"
-                   StrokeThickness="1"
-                   Fill="Transparent"
-                   SnapsToDevicePixels="False" />
+             Background="{x:Null}">
+    <Canvas x:Name="OverlayCanvas" Background="{x:Null}">
+        <Polygon x:Name="SelectionBox"
+                 Stroke="#B0B0B0"
+                 StrokeThickness="1"
+                 Fill="Transparent"
+                 IsHitTestVisible="False"
+                 SnapsToDevicePixels="False" />
         <Ellipse x:Name="HandleTopLeft"
                  Width="8" Height="8"
                  Fill="White"
                  Stroke="#808080"
-                 StrokeThickness="1" />
+                 StrokeThickness="1"
+                 IsHitTestVisible="False" />
         <Ellipse x:Name="HandleTopRight"
                  Width="8" Height="8"
                  Fill="White"
                  Stroke="#808080"
-                 StrokeThickness="1" />
+                 StrokeThickness="1"
+                 IsHitTestVisible="False" />
         <Ellipse x:Name="HandleBottomLeft"
                  Width="8" Height="8"
                  Fill="White"
                  Stroke="#808080"
-                 StrokeThickness="1" />
+                 StrokeThickness="1"
+                 IsHitTestVisible="False" />
         <Ellipse x:Name="HandleBottomRight"
                  Width="8" Height="8"
                  Fill="White"
                  Stroke="#808080"
-                 StrokeThickness="1" />
+                 StrokeThickness="1"
+                 IsHitTestVisible="False" />
         <Border x:Name="RotateHandle"
                 Width="26" Height="26"
                 CornerRadius="13"
                 Background="#202020"
                 BorderBrush="#55FFFFFF"
-                BorderThickness="1">
+                BorderThickness="1"
+                Cursor="Hand"
+                MouseLeftButtonDown="OnRotateHandleMouseDown">
             <Image x:Name="RotateHandleIcon"
                    Width="14" Height="14"
-                   Stretch="Uniform" />
+                   Stretch="Uniform"
+                   IsHitTestVisible="False" />
         </Border>
     </Canvas>
 </UserControl>

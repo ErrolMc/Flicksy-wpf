@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -16,45 +17,45 @@ public partial class SelectionOverlayViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsVisible))]
-    private Rect contentBounds = Rect.Empty;
+    private Rect canonicalBounds = Rect.Empty;
 
-    public bool IsVisible => IsActive && SelectedStroke is not null && !ContentBounds.IsEmpty;
+    public bool IsVisible => IsActive && SelectedStroke is not null && !CanonicalBounds.IsEmpty;
+
+    public event EventHandler? TransformChanged;
 
     partial void OnSelectedStrokeChanged(Stroke? oldValue, Stroke? newValue)
     {
         if (oldValue is not null)
         {
             oldValue.PropertyChanged -= OnStrokePropertyChanged;
+            oldValue.Transform.Changed -= OnStrokeTransformChanged;
         }
 
         if (newValue is not null)
         {
             newValue.PropertyChanged += OnStrokePropertyChanged;
+            newValue.Transform.Changed += OnStrokeTransformChanged;
         }
 
-        RecomputeBounds();
+        RecomputeCanonicalBounds();
+        TransformChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnStrokePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(Stroke.Geometry) || e.PropertyName == nameof(Stroke.Thickness))
         {
-            RecomputeBounds();
+            RecomputeCanonicalBounds();
         }
     }
 
-    private void RecomputeBounds()
+    private void OnStrokeTransformChanged(object? sender, EventArgs e)
     {
-        if (SelectedStroke?.Geometry is { } geometry && !geometry.Bounds.IsEmpty)
-        {
-            var bounds = geometry.Bounds;
-            var inflate = SelectedStroke.Thickness / 2.0;
-            bounds.Inflate(inflate, inflate);
-            ContentBounds = bounds;
-        }
-        else
-        {
-            ContentBounds = Rect.Empty;
-        }
+        TransformChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RecomputeCanonicalBounds()
+    {
+        CanonicalBounds = SelectedStroke?.CanonicalBounds ?? Rect.Empty;
     }
 }

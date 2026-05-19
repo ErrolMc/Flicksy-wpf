@@ -85,12 +85,12 @@ public partial class DrawingView : UserControl
 
     private Point? _lastAppendedPoint;
     private Stroke? _draggingStroke;
-    private Point _lastDragPoint;
+    private Matrix _moveBaseMatrix;
+    private Point _moveStartPoint;
     private Stroke? _scalingStroke;
-    private Point _scaleAnchor;
-    private Point _scaleOriginalGrabbed;
-    private List<Point> _scaleBasePoints = new();
-    private double _scaleBaseThickness;
+    private Matrix _scaleBaseMatrix;
+    private Point _scaleAnchorWorld;
+    private Point _scaleOriginalGrabbedWorld;
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -103,16 +103,13 @@ public partial class DrawingView : UserControl
         {
             if (ViewModel.SelectedStroke is { } current && GetCornerHit(current, point) is var corner && corner != CornerKind.None)
             {
-                var inflatedBounds = current.Geometry.Bounds;
-                var inflate = current.Thickness / 2d;
-                inflatedBounds.Inflate(inflate, inflate);
-                var (anchor, grabbed) = GetAnchorAndGrabbed(inflatedBounds, corner);
-
+                var canonical = current.CanonicalBounds;
+                var (anchorCanonical, grabbedCanonical) = GetAnchorAndGrabbed(canonical, corner);
+                var m = current.Transform.Matrix;
                 _scalingStroke = current;
-                _scaleAnchor = anchor;
-                _scaleOriginalGrabbed = grabbed;
-                _scaleBasePoints = new List<Point>(current.Points);
-                _scaleBaseThickness = current.Thickness;
+                _scaleBaseMatrix = m;
+                _scaleAnchorWorld = m.Transform(anchorCanonical);
+                _scaleOriginalGrabbedWorld = m.Transform(grabbedCanonical);
                 CaptureMouse();
                 e.Handled = true;
                 return;
@@ -124,7 +121,8 @@ public partial class DrawingView : UserControl
                 if (hit == ViewModel.SelectedStroke)
                 {
                     _draggingStroke = hit;
-                    _lastDragPoint = point;
+                    _moveBaseMatrix = hit.Transform.Matrix;
+                    _moveStartPoint = point;
                     CaptureMouse();
                 }
                 else
@@ -135,7 +133,8 @@ public partial class DrawingView : UserControl
             else if (ViewModel.SelectedStroke is { } selected && IsInsideSelectionBounds(selected, point))
             {
                 _draggingStroke = selected;
-                _lastDragPoint = point;
+                _moveBaseMatrix = selected.Transform.Matrix;
+                _moveStartPoint = point;
                 CaptureMouse();
             }
             else
@@ -196,17 +195,17 @@ public partial class DrawingView : UserControl
         if (_scalingStroke is not null)
         {
             var cursor = e.GetPosition(this);
-            var oldDiag = _scaleOriginalGrabbed - _scaleAnchor;
+            var oldDiag = _scaleOriginalGrabbedWorld - _scaleAnchorWorld;
             var oldLengthSq = oldDiag.X * oldDiag.X + oldDiag.Y * oldDiag.Y;
             if (oldLengthSq > double.Epsilon)
             {
-                var offset = cursor - _scaleAnchor;
+                var offset = cursor - _scaleAnchorWorld;
                 var factor = (offset.X * oldDiag.X + offset.Y * oldDiag.Y) / oldLengthSq;
                 if (Math.Abs(factor) < 0.01d)
                 {
                     factor = factor < 0 ? -0.01d : 0.01d;
                 }
-                _scalingStroke.SetScaled(_scaleAnchor, factor, _scaleBasePoints, _scaleBaseThickness);
+                _scalingStroke.ScaleFrom(_scaleBaseMatrix, factor, _scaleAnchorWorld);
             }
             return;
         }
@@ -214,12 +213,8 @@ public partial class DrawingView : UserControl
         if (_draggingStroke is not null)
         {
             var current = e.GetPosition(this);
-            var delta = current - _lastDragPoint;
-            if (delta.X != 0 || delta.Y != 0)
-            {
-                _draggingStroke.Translate(delta);
-                _lastDragPoint = current;
-            }
+            var totalDelta = current - _moveStartPoint;
+            _draggingStroke.TranslateFrom(_moveBaseMatrix, totalDelta);
             return;
         }
 
@@ -254,7 +249,6 @@ public partial class DrawingView : UserControl
         if (_scalingStroke is not null)
         {
             _scalingStroke = null;
-            _scaleBasePoints = new List<Point>();
             ReleaseMouseCapture();
             e.Handled = true;
             return;
@@ -332,43 +326,46 @@ public partial class DrawingView : UserControl
         }
     }
 
-    private static bool IsInsideSelectionBounds(Stroke stroke, Point point)
+    private static bool IsInsideSelectionBounds(Stroke stroke, Point worldPoint)
     {
-        if (stroke.Geometry.Bounds.IsEmpty)
+        var canonical = stroke.CanonicalBounds;
+        if (canonical.IsEmpty)
         {
             return false;
         }
 
-        var bounds = stroke.Geometry.Bounds;
-        var inflate = stroke.Thickness / 2d;
-        bounds.Inflate(inflate, inflate);
-        return bounds.Contains(point);
+        var inverse = stroke.Transform.Matrix;
+        if (!inverse.HasInverse)
+        {
+            return false;
+        }
+        inverse.Invert();
+        var localPoint = inverse.Transform(worldPoint);
+        return canonical.Contains(localPoint);
     }
 
-    private CornerKind GetCornerHit(Stroke stroke, Point point)
+    private CornerKind GetCornerHit(Stroke stroke, Point worldPoint)
     {
-        if (stroke.Geometry.Bounds.IsEmpty)
+        var canonical = stroke.CanonicalBounds;
+        if (canonical.IsEmpty || canonical.Width < 0.5d || canonical.Height < 0.5d)
         {
             return CornerKind.None;
         }
 
-        var bounds = stroke.Geometry.Bounds;
-        if (bounds.Width < 0.5d || bounds.Height < 0.5d)
-        {
-            return CornerKind.None;
-        }
-
-        var inflate = stroke.Thickness / 2d;
-        bounds.Inflate(inflate, inflate);
+        var m = stroke.Transform.Matrix;
+        var tl = m.Transform(new Point(canonical.Left, canonical.Top));
+        var tr = m.Transform(new Point(canonical.Right, canonical.Top));
+        var bl = m.Transform(new Point(canonical.Left, canonical.Bottom));
+        var br = m.Transform(new Point(canonical.Right, canonical.Bottom));
 
         var scale = Math.Max(0.0001d, ContentScale);
         var pickup = 8.0d / scale;
         var pickupSquared = pickup * pickup;
 
-        if (DistanceSquared(point, new Point(bounds.Left, bounds.Top)) <= pickupSquared) return CornerKind.TopLeft;
-        if (DistanceSquared(point, new Point(bounds.Right, bounds.Top)) <= pickupSquared) return CornerKind.TopRight;
-        if (DistanceSquared(point, new Point(bounds.Left, bounds.Bottom)) <= pickupSquared) return CornerKind.BottomLeft;
-        if (DistanceSquared(point, new Point(bounds.Right, bounds.Bottom)) <= pickupSquared) return CornerKind.BottomRight;
+        if (DistanceSquared(worldPoint, tl) <= pickupSquared) return CornerKind.TopLeft;
+        if (DistanceSquared(worldPoint, tr) <= pickupSquared) return CornerKind.TopRight;
+        if (DistanceSquared(worldPoint, bl) <= pickupSquared) return CornerKind.BottomLeft;
+        if (DistanceSquared(worldPoint, br) <= pickupSquared) return CornerKind.BottomRight;
 
         return CornerKind.None;
     }
@@ -391,33 +388,70 @@ public partial class DrawingView : UserControl
         }
 
         var point = e.GetPosition(this);
-        Cursor = GetCornerHit(selected, point) switch
+        var corner = GetCornerHit(selected, point);
+        if (corner == CornerKind.None)
         {
-            CornerKind.TopLeft or CornerKind.BottomRight => Cursors.SizeNWSE,
-            CornerKind.TopRight or CornerKind.BottomLeft => Cursors.SizeNESW,
-            _ => null,
-        };
+            Cursor = null;
+            return;
+        }
+
+        var canonical = selected.CanonicalBounds;
+        var (anchorCanonical, grabbedCanonical) = GetAnchorAndGrabbed(canonical, corner);
+        var m = selected.Transform.Matrix;
+        var anchorWorld = m.Transform(anchorCanonical);
+        var grabbedWorld = m.Transform(grabbedCanonical);
+        Cursor = CursorForDiagonal(grabbedWorld - anchorWorld);
     }
 
-    private static bool IntersectsStroke(Stroke stroke, Point point)
+    private static Cursor CursorForDiagonal(Vector diagonal)
     {
-        var points = stroke.Points;
+        if (Math.Abs(diagonal.X) < double.Epsilon && Math.Abs(diagonal.Y) < double.Epsilon)
+        {
+            return Cursors.SizeNWSE;
+        }
+
+        var angle = Math.Atan2(diagonal.Y, diagonal.X);
+        if (angle < 0) angle += Math.PI; // direction is bidirectional
+        var deg = angle * 180.0 / Math.PI;
+
+        // 4 buckets across [0, 180):
+        //   [  0,  22.5) and [157.5, 180) → horizontal (WE)
+        //   [ 22.5,  67.5) → top-left to bottom-right (NWSE)
+        //   [ 67.5, 112.5) → vertical (NS)
+        //   [112.5, 157.5) → top-right to bottom-left (NESW)
+        if (deg < 22.5 || deg >= 157.5) return Cursors.SizeWE;
+        if (deg < 67.5) return Cursors.SizeNWSE;
+        if (deg < 112.5) return Cursors.SizeNS;
+        return Cursors.SizeNESW;
+    }
+
+    private static bool IntersectsStroke(Stroke stroke, Point worldPoint)
+    {
+        var points = stroke.BasePoints;
         if (points.Count == 0)
         {
             return false;
         }
+
+        var inverse = stroke.Transform.Matrix;
+        if (!inverse.HasInverse)
+        {
+            return false;
+        }
+        inverse.Invert();
+        var localPoint = inverse.Transform(worldPoint);
 
         var tolerance = Math.Max(1d, stroke.Thickness * 0.5d);
         var toleranceSquared = tolerance * tolerance;
 
         if (points.Count == 1)
         {
-            return DistanceSquared(points[0], point) <= toleranceSquared;
+            return DistanceSquared(points[0], localPoint) <= toleranceSquared;
         }
 
         for (var i = 1; i < points.Count; i++)
         {
-            if (DistanceSquaredToSegment(point, points[i - 1], points[i]) <= toleranceSquared)
+            if (DistanceSquaredToSegment(localPoint, points[i - 1], points[i]) <= toleranceSquared)
             {
                 return true;
             }

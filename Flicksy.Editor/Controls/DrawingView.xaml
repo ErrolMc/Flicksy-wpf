@@ -27,7 +27,8 @@
                       StrokeStartLineCap="Round"
                       StrokeEndLineCap="Round"
                       SnapsToDevicePixels="False"
-                      UseLayoutRounding="False" />
+                      UseLayoutRounding="False"
+                      RenderTransform="{Binding Transform}" />
             </DataTemplate>
         </ItemsControl.ItemTemplate>
     </ItemsControl>
