@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -36,6 +37,13 @@ public partial class DrawingView : UserControl
             typeof(DrawingView),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty ContentScaleProperty =
+        DependencyProperty.Register(
+            nameof(ContentScale),
+            typeof(double),
+            typeof(DrawingView),
+            new PropertyMetadata(1.0));
+
     public DrawingView()
     {
         InitializeComponent();
@@ -65,11 +73,24 @@ public partial class DrawingView : UserControl
         set => SetValue(IsSelectActiveProperty, value);
     }
 
+    public double ContentScale
+    {
+        get => (double)GetValue(ContentScaleProperty);
+        set => SetValue(ContentScaleProperty, value);
+    }
+
     public DrawingViewModel? ViewModel => DataContext as DrawingViewModel;
+
+    private enum CornerKind { None, TopLeft, TopRight, BottomLeft, BottomRight }
 
     private Point? _lastAppendedPoint;
     private Stroke? _draggingStroke;
     private Point _lastDragPoint;
+    private Stroke? _scalingStroke;
+    private Point _scaleAnchor;
+    private Point _scaleOriginalGrabbed;
+    private List<Point> _scaleBasePoints = new();
+    private double _scaleBaseThickness;
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -80,6 +101,23 @@ public partial class DrawingView : UserControl
 
         if (IsSelectActive)
         {
+            if (ViewModel.SelectedStroke is { } current && GetCornerHit(current, point) is var corner && corner != CornerKind.None)
+            {
+                var inflatedBounds = current.Geometry.Bounds;
+                var inflate = current.Thickness / 2d;
+                inflatedBounds.Inflate(inflate, inflate);
+                var (anchor, grabbed) = GetAnchorAndGrabbed(inflatedBounds, corner);
+
+                _scalingStroke = current;
+                _scaleAnchor = anchor;
+                _scaleOriginalGrabbed = grabbed;
+                _scaleBasePoints = new List<Point>(current.Points);
+                _scaleBaseThickness = current.Thickness;
+                CaptureMouse();
+                e.Handled = true;
+                return;
+            }
+
             var hit = HitTestStroke(point);
             if (hit is not null)
             {
@@ -144,8 +182,32 @@ public partial class DrawingView : UserControl
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
-        if (ViewModel is null || e.LeftButton != MouseButtonState.Pressed)
+        if (ViewModel is null)
         {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            UpdateHoverCursor(e);
+            return;
+        }
+
+        if (_scalingStroke is not null)
+        {
+            var cursor = e.GetPosition(this);
+            var oldDiag = _scaleOriginalGrabbed - _scaleAnchor;
+            var oldLengthSq = oldDiag.X * oldDiag.X + oldDiag.Y * oldDiag.Y;
+            if (oldLengthSq > double.Epsilon)
+            {
+                var offset = cursor - _scaleAnchor;
+                var factor = (offset.X * oldDiag.X + offset.Y * oldDiag.Y) / oldLengthSq;
+                if (Math.Abs(factor) < 0.01d)
+                {
+                    factor = factor < 0 ? -0.01d : 0.01d;
+                }
+                _scalingStroke.SetScaled(_scaleAnchor, factor, _scaleBasePoints, _scaleBaseThickness);
+            }
             return;
         }
 
@@ -189,6 +251,15 @@ public partial class DrawingView : UserControl
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
+        if (_scalingStroke is not null)
+        {
+            _scalingStroke = null;
+            _scaleBasePoints = new List<Point>();
+            ReleaseMouseCapture();
+            e.Handled = true;
+            return;
+        }
+
         if (_draggingStroke is not null)
         {
             _draggingStroke = null;
@@ -272,6 +343,60 @@ public partial class DrawingView : UserControl
         var inflate = stroke.Thickness / 2d;
         bounds.Inflate(inflate, inflate);
         return bounds.Contains(point);
+    }
+
+    private CornerKind GetCornerHit(Stroke stroke, Point point)
+    {
+        if (stroke.Geometry.Bounds.IsEmpty)
+        {
+            return CornerKind.None;
+        }
+
+        var bounds = stroke.Geometry.Bounds;
+        if (bounds.Width < 0.5d || bounds.Height < 0.5d)
+        {
+            return CornerKind.None;
+        }
+
+        var inflate = stroke.Thickness / 2d;
+        bounds.Inflate(inflate, inflate);
+
+        var scale = Math.Max(0.0001d, ContentScale);
+        var pickup = 8.0d / scale;
+        var pickupSquared = pickup * pickup;
+
+        if (DistanceSquared(point, new Point(bounds.Left, bounds.Top)) <= pickupSquared) return CornerKind.TopLeft;
+        if (DistanceSquared(point, new Point(bounds.Right, bounds.Top)) <= pickupSquared) return CornerKind.TopRight;
+        if (DistanceSquared(point, new Point(bounds.Left, bounds.Bottom)) <= pickupSquared) return CornerKind.BottomLeft;
+        if (DistanceSquared(point, new Point(bounds.Right, bounds.Bottom)) <= pickupSquared) return CornerKind.BottomRight;
+
+        return CornerKind.None;
+    }
+
+    private static (Point Anchor, Point Grabbed) GetAnchorAndGrabbed(Rect bounds, CornerKind corner) => corner switch
+    {
+        CornerKind.TopLeft => (new Point(bounds.Right, bounds.Bottom), new Point(bounds.Left, bounds.Top)),
+        CornerKind.TopRight => (new Point(bounds.Left, bounds.Bottom), new Point(bounds.Right, bounds.Top)),
+        CornerKind.BottomLeft => (new Point(bounds.Right, bounds.Top), new Point(bounds.Left, bounds.Bottom)),
+        CornerKind.BottomRight => (new Point(bounds.Left, bounds.Top), new Point(bounds.Right, bounds.Bottom)),
+        _ => (default, default),
+    };
+
+    private void UpdateHoverCursor(MouseEventArgs e)
+    {
+        if (!IsSelectActive || ViewModel?.SelectedStroke is not { } selected)
+        {
+            Cursor = null;
+            return;
+        }
+
+        var point = e.GetPosition(this);
+        Cursor = GetCornerHit(selected, point) switch
+        {
+            CornerKind.TopLeft or CornerKind.BottomRight => Cursors.SizeNWSE,
+            CornerKind.TopRight or CornerKind.BottomLeft => Cursors.SizeNESW,
+            _ => null,
+        };
     }
 
     private static bool IntersectsStroke(Stroke stroke, Point point)

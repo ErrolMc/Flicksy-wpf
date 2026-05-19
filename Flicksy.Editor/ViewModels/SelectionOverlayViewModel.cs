@@ -37,7 +37,7 @@ public partial class SelectionOverlayViewModel : ObservableObject
 
     private void OnStrokePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(Stroke.Geometry))
+        if (e.PropertyName == nameof(Stroke.Geometry) || e.PropertyName == nameof(Stroke.Thickness))
         {
             RecomputeBounds();
         }

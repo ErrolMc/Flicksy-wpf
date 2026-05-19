@@ -160,6 +160,7 @@
                                           StrokeThickness="{Binding DataContext.ImageEditTools.PenSettings.Size, RelativeSource={RelativeSource AncestorType=Window}}"
                                           IsErasing="{Binding DataContext.ImageEditTools.IsEraseActive, RelativeSource={RelativeSource AncestorType=Window}}"
                                           IsSelectActive="{Binding DataContext.ImageEditTools.IsSelectActive, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          ContentScale="{Binding ElementName=ImageScaleTransform, Path=ScaleX}"
                                           IsHitTestVisible="{Binding DataContext.ImageEditTools.IsImageToolActive, RelativeSource={RelativeSource AncestorType=Window}}" />
                 </Grid>
                 <controls:SelectionOverlayView DataContext="{Binding SelectionOverlay}"

@@ -11,11 +11,12 @@ public sealed class Stroke : ObservableObject
 {
     private PointCollection _points = new();
     private Geometry _geometry = Geometry.Empty;
+    private double _thickness;
 
     public Stroke(Brush brush, double thickness)
     {
         Brush = brush;
-        Thickness = thickness;
+        _thickness = thickness;
     }
 
     public PointCollection Points
@@ -26,7 +27,11 @@ public sealed class Stroke : ObservableObject
 
     public Brush Brush { get; }
 
-    public double Thickness { get; }
+    public double Thickness
+    {
+        get => _thickness;
+        private set => SetProperty(ref _thickness, value);
+    }
 
     public Geometry Geometry
     {
@@ -59,6 +64,26 @@ public sealed class Stroke : ObservableObject
         }
 
         Points = updated;
+        Geometry = BuildGeometry(updated);
+    }
+
+    public void SetScaled(Point anchor, double factor, IReadOnlyList<Point> basePoints, double baseThickness)
+    {
+        if (basePoints.Count == 0)
+        {
+            return;
+        }
+
+        var updated = new PointCollection(basePoints.Count);
+        foreach (var p in basePoints)
+        {
+            updated.Add(new Point(
+                anchor.X + (p.X - anchor.X) * factor,
+                anchor.Y + (p.Y - anchor.Y) * factor));
+        }
+
+        Points = updated;
+        Thickness = Math.Max(0.1, baseThickness * Math.Abs(factor));
         Geometry = BuildGeometry(updated);
     }
 
