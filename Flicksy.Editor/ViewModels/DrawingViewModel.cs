@@ -92,33 +92,31 @@ public sealed class Stroke : ObservableObject
             return Geometry.Empty;
         }
 
-        var smoothedPoints = SmoothPoints(points);
-
         var figure = new PathFigure
         {
-            StartPoint = smoothedPoints[0],
+            StartPoint = points[0],
             IsClosed = false,
             IsFilled = false,
         };
 
-        if (smoothedPoints.Count == 1)
+        if (points.Count == 1)
         {
-            figure.Segments.Add(new LineSegment(smoothedPoints[0], isStroked: true));
+            figure.Segments.Add(new LineSegment(points[0], isStroked: true));
         }
-        else if (smoothedPoints.Count == 2)
+        else if (points.Count == 2)
         {
-            figure.Segments.Add(new LineSegment(smoothedPoints[1], isStroked: true));
+            figure.Segments.Add(new LineSegment(points[1], isStroked: true));
         }
         else
         {
             const double tension = 1d;
 
-            for (var i = 0; i < smoothedPoints.Count - 1; i++)
+            for (var i = 0; i < points.Count - 1; i++)
             {
-                var p0 = i == 0 ? smoothedPoints[i] : smoothedPoints[i - 1];
-                var p1 = smoothedPoints[i];
-                var p2 = smoothedPoints[i + 1];
-                var p3 = i + 2 < smoothedPoints.Count ? smoothedPoints[i + 2] : smoothedPoints[i + 1];
+                var p0 = i == 0 ? points[i] : points[i - 1];
+                var p1 = points[i];
+                var p2 = points[i + 1];
+                var p3 = i + 2 < points.Count ? points[i + 2] : points[i + 1];
 
                 var cp1 = new Point(
                     p1.X + ((p2.X - p0.X) * tension / 6d),
@@ -135,58 +133,6 @@ public sealed class Stroke : ObservableObject
         var geometry = new PathGeometry(new[] { figure });
         geometry.Freeze();
         return geometry;
-    }
-
-    private static List<Point> SmoothPoints(PointCollection points)
-    {
-        var smoothed = new List<Point>(points.Count);
-        for (var i = 0; i < points.Count; i++)
-        {
-            smoothed.Add(points[i]);
-        }
-
-        if (smoothed.Count < 4)
-        {
-            return smoothed;
-        }
-
-        var iterations = smoothed.Count switch
-        {
-            > 24 => 3,
-            > 10 => 2,
-            _ => 1,
-        };
-
-        for (var iteration = 0; iteration < iterations; iteration++)
-        {
-            var current = smoothed;
-            var next = new List<Point>(current.Count * 2)
-            {
-                current[0],
-            };
-
-            for (var i = 0; i < current.Count - 1; i++)
-            {
-                var p0 = current[i];
-                var p1 = current[i + 1];
-
-                var q = new Point(
-                    (0.75 * p0.X) + (0.25 * p1.X),
-                    (0.75 * p0.Y) + (0.25 * p1.Y));
-
-                var r = new Point(
-                    (0.25 * p0.X) + (0.75 * p1.X),
-                    (0.25 * p0.Y) + (0.75 * p1.Y));
-
-                next.Add(q);
-                next.Add(r);
-            }
-
-            next.Add(current[^1]);
-            smoothed = next;
-        }
-
-        return smoothed;
     }
 }
 

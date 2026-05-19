@@ -84,6 +84,8 @@ public partial class DrawingView : UserControl
     private enum CornerKind { None, TopLeft, TopRight, BottomLeft, BottomRight }
 
     private Point? _lastAppendedPoint;
+    private Point? _smoothedPoint;
+    private const double InputSmoothingAlpha = 0.5d;
     private Stroke? _draggingStroke;
     private Matrix _moveBaseMatrix;
     private Point _moveStartPoint;
@@ -156,6 +158,7 @@ public partial class DrawingView : UserControl
 
         ViewModel.BeginStroke(point, StrokeBrush, StrokeThickness);
         _lastAppendedPoint = point;
+        _smoothedPoint = point;
         CaptureMouse();
         e.Handled = true;
     }
@@ -229,19 +232,36 @@ public partial class DrawingView : UserControl
             return;
         }
 
+        var smoothed = SmoothInput(point);
+
         if (_lastAppendedPoint is Point lastPoint)
         {
-            var minDistance = Math.Max(0.75d, StrokeThickness * 0.2d);
-            var dx = point.X - lastPoint.X;
-            var dy = point.Y - lastPoint.Y;
+            var minDistance = Math.Max(1.5d, StrokeThickness * 0.5d);
+            var dx = smoothed.X - lastPoint.X;
+            var dy = smoothed.Y - lastPoint.Y;
             if ((dx * dx) + (dy * dy) < (minDistance * minDistance))
             {
                 return;
             }
         }
 
-        ViewModel.AppendPoint(point);
-        _lastAppendedPoint = point;
+        ViewModel.AppendPoint(smoothed);
+        _lastAppendedPoint = smoothed;
+    }
+
+    private Point SmoothInput(Point raw)
+    {
+        if (_smoothedPoint is not Point previous)
+        {
+            _smoothedPoint = raw;
+            return raw;
+        }
+
+        var smoothed = new Point(
+            (InputSmoothingAlpha * raw.X) + ((1d - InputSmoothingAlpha) * previous.X),
+            (InputSmoothingAlpha * raw.Y) + ((1d - InputSmoothingAlpha) * previous.Y));
+        _smoothedPoint = smoothed;
+        return smoothed;
     }
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
@@ -271,17 +291,19 @@ public partial class DrawingView : UserControl
 
             ReleaseMouseCapture();
             _lastAppendedPoint = null;
+            _smoothedPoint = null;
             return;
         }
 
         if (ViewModel is not null && TryGetPoint(e, clampToBounds: true, out var point))
         {
-            ViewModel.AppendPoint(point);
+            ViewModel.AppendPoint(SmoothInput(point));
         }
 
         ViewModel?.EndStroke();
         ReleaseMouseCapture();
         _lastAppendedPoint = null;
+        _smoothedPoint = null;
     }
 
     private bool TryGetPoint(MouseEventArgs e, bool clampToBounds, out Point point)
