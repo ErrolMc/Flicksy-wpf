@@ -120,7 +120,8 @@
             </Button>
             <Button x:Name="ShapesButton"
                     Command="{Binding ShapesToolCommand}"
-                    ToolTip="Shapes">
+                    ToolTip="Shapes"
+                    Margin="0,0,4,0">
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
                         <Style.Triggers>
@@ -143,6 +144,32 @@
                    IsOpen="{Binding IsShapeSettingsOpen, Mode=TwoWay}"
                    Opened="OnShapeSettingsPopupOpened">
                 <controls:ShapeSettingsView DataContext="{Binding ShapeSettings}" />
+            </Popup>
+            <Button x:Name="TextButton"
+                    Command="{Binding TextToolCommand}"
+                    ToolTip="Text">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Text}">
+                                <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Grid Width="28" Height="28">
+                    <Image Source="{Binding Text}" Width="28" Height="28" Stretch="Uniform" />
+                </Grid>
+            </Button>
+            <Popup x:Name="TextSettingsPopup"
+                   PlacementTarget="{Binding ElementName=TextButton}"
+                   Placement="Bottom"
+                   VerticalOffset="6"
+                   StaysOpen="False"
+                   AllowsTransparency="True"
+                   IsOpen="{Binding IsTextSettingsOpen, Mode=TwoWay}"
+                   Opened="OnTextSettingsPopupOpened">
+                <controls:TextSettingsView DataContext="{Binding TextSettings}" />
             </Popup>
         </StackPanel>
     </Border>

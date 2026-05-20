@@ -4,19 +4,19 @@ using System.Windows.Controls.Primitives;
 
 namespace Flicksy.Editor.Controls;
 
-public partial class ImageEditToolsView : UserControl
+public partial class TextSettingsView : UserControl
 {
-    public ImageEditToolsView()
+    public TextSettingsView()
     {
         InitializeComponent();
     }
 
-    private void OnShapeSettingsPopupOpened(object sender, System.EventArgs e)
+    private void OnFillSettingsPopupOpened(object sender, System.EventArgs e)
     {
         CenterPopupOnPlacementTarget(sender);
     }
 
-    private void OnTextSettingsPopupOpened(object sender, System.EventArgs e)
+    private void OnOutlineSettingsPopupOpened(object sender, System.EventArgs e)
     {
         CenterPopupOnPlacementTarget(sender);
     }

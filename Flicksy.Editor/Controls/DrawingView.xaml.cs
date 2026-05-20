@@ -45,6 +45,13 @@ public partial class DrawingView : UserControl
             typeof(DrawingView),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty IsTextActiveProperty =
+        DependencyProperty.Register(
+            nameof(IsTextActive),
+            typeof(bool),
+            typeof(DrawingView),
+            new PropertyMetadata(false));
+
     public static readonly DependencyProperty ActiveShapeProperty =
         DependencyProperty.Register(
             nameof(ActiveShape),
@@ -113,6 +120,12 @@ public partial class DrawingView : UserControl
     {
         get => (bool)GetValue(IsShapeActiveProperty);
         set => SetValue(IsShapeActiveProperty, value);
+    }
+
+    public bool IsTextActive
+    {
+        get => (bool)GetValue(IsTextActiveProperty);
+        set => SetValue(IsTextActiveProperty, value);
     }
 
     public ShapeKind ActiveShape
@@ -232,6 +245,12 @@ public partial class DrawingView : UserControl
             _isDrawingShape = true;
             ViewModel.BeginShape(point, _shapeKindInProgress, FillBrush, OutlineBrush, OutlineThickness);
             CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
+        if (IsTextActive)
+        {
             e.Handled = true;
             return;
         }

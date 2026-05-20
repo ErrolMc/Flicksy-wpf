@@ -13,6 +13,7 @@ public enum ImageEditTool
     Pen,
     Erase,
     Shapes,
+    Text,
 }
 
 public partial class ImageEditToolsViewModel : ObservableObject
@@ -24,6 +25,7 @@ public partial class ImageEditToolsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsEraseActive))]
     [NotifyPropertyChangedFor(nameof(IsSelectActive))]
     [NotifyPropertyChangedFor(nameof(IsShapesActive))]
+    [NotifyPropertyChangedFor(nameof(IsTextActive))]
     [NotifyPropertyChangedFor(nameof(IsDrawingToolActive))]
     [NotifyPropertyChangedFor(nameof(IsImageToolActive))]
     private ImageEditTool selectedTool = ImageEditTool.Select;
@@ -34,7 +36,11 @@ public partial class ImageEditToolsViewModel : ObservableObject
     [ObservableProperty]
     private bool isShapeSettingsOpen;
 
+    [ObservableProperty]
+    private bool isTextSettingsOpen;
+
     private DateTime _lastShapePopupCloseAt = DateTime.MinValue;
+    private DateTime _lastTextPopupCloseAt = DateTime.MinValue;
 
     public ImageEditToolsViewModel()
     {
@@ -43,6 +49,7 @@ public partial class ImageEditToolsViewModel : ObservableObject
         PenForeground = Resources.pen_foreground.ToImageSource();
         Eraser = Resources.eraser.ToImageSource();
         Shapes = Resources.shapes.ToImageSource();
+        Text = Resources.text.ToImageSource();
     }
 
     public ImageSource Cursor { get; }
@@ -55,9 +62,13 @@ public partial class ImageEditToolsViewModel : ObservableObject
 
     public ImageSource Shapes { get; }
 
+    public ImageSource Text { get; }
+
     public PenSettingsViewModel PenSettings { get; } = new();
 
     public ShapeSettingsViewModel ShapeSettings { get; } = new();
+
+    public TextSettingsViewModel TextSettings { get; } = new();
 
     public bool IsPenActive => SelectedTool == ImageEditTool.Pen;
 
@@ -67,9 +78,11 @@ public partial class ImageEditToolsViewModel : ObservableObject
 
     public bool IsShapesActive => SelectedTool == ImageEditTool.Shapes;
 
+    public bool IsTextActive => SelectedTool == ImageEditTool.Text;
+
     public bool IsDrawingToolActive => SelectedTool is ImageEditTool.Pen or ImageEditTool.Erase or ImageEditTool.Shapes;
 
-    public bool IsImageToolActive => SelectedTool is ImageEditTool.Pen or ImageEditTool.Erase or ImageEditTool.Select or ImageEditTool.Shapes;
+    public bool IsImageToolActive => SelectedTool is ImageEditTool.Pen or ImageEditTool.Erase or ImageEditTool.Select or ImageEditTool.Shapes or ImageEditTool.Text;
 
     [RelayCommand]
     private void Select()
@@ -101,6 +114,23 @@ public partial class ImageEditToolsViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void TextTool()
+    {
+        if (SelectedTool == ImageEditTool.Text)
+        {
+            if ((DateTime.UtcNow - _lastTextPopupCloseAt).TotalMilliseconds < 250)
+            {
+                return;
+            }
+
+            IsTextSettingsOpen = !IsTextSettingsOpen;
+            return;
+        }
+
+        SelectedTool = ImageEditTool.Text;
+    }
+
+    [RelayCommand]
     private void ShapesTool()
     {
         if (SelectedTool == ImageEditTool.Shapes)
@@ -115,7 +145,6 @@ public partial class ImageEditToolsViewModel : ObservableObject
         }
 
         SelectedTool = ImageEditTool.Shapes;
-        IsShapeSettingsOpen = true;
     }
 
     partial void OnSelectedToolChanged(ImageEditTool value)
@@ -128,6 +157,11 @@ public partial class ImageEditToolsViewModel : ObservableObject
         if (value != ImageEditTool.Shapes)
         {
             IsShapeSettingsOpen = false;
+        }
+
+        if (value != ImageEditTool.Text)
+        {
+            IsTextSettingsOpen = false;
         }
     }
 
@@ -144,6 +178,14 @@ public partial class ImageEditToolsViewModel : ObservableObject
         if (!value)
         {
             _lastShapePopupCloseAt = DateTime.UtcNow;
+        }
+    }
+
+    partial void OnIsTextSettingsOpenChanged(bool value)
+    {
+        if (!value)
+        {
+            _lastTextPopupCloseAt = DateTime.UtcNow;
         }
     }
 
