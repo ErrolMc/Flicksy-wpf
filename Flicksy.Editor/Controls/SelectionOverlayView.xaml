@@ -11,6 +11,8 @@
         <Polygon x:Name="SelectionBox"
                  Stroke="#B0B0B0"
                  StrokeThickness="1"
+                 StrokeDashArray="4 3"
+                 StrokeDashCap="Flat"
                  Fill="Transparent"
                  IsHitTestVisible="False"
                  SnapsToDevicePixels="False" />
