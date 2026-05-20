@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using Flicksy.Editor.Source;
 using Flicksy.Editor.ViewModels;
 
 namespace Flicksy.Editor.Controls;
@@ -20,7 +21,7 @@ public partial class SelectionOverlayView : UserControl
 
     private static readonly ImageSource RotateIconSource = LoadRotateIcon();
 
-    private Stroke? _rotatingStroke;
+    private DrawingItem? _rotatingItem;
     private Matrix _rotationBaseMatrix;
     private Point _rotationCenterWorld;
     private Point _rotationCenterViewport;
@@ -96,7 +97,7 @@ public partial class SelectionOverlayView : UserControl
     {
         if (e.PropertyName is nameof(SelectionOverlayViewModel.CanonicalBounds)
             or nameof(SelectionOverlayViewModel.IsVisible)
-            or nameof(SelectionOverlayViewModel.SelectedStroke)
+            or nameof(SelectionOverlayViewModel.SelectedItem)
             or nameof(SelectionOverlayViewModel.IsActive))
         {
             UpdateLayoutFromState();
@@ -106,7 +107,7 @@ public partial class SelectionOverlayView : UserControl
     private void UpdateLayoutFromState()
     {
         var vm = ViewModel;
-        if (vm is null || !vm.IsVisible || vm.SelectedStroke is not { } stroke)
+        if (vm is null || !vm.IsVisible || vm.SelectedItem is not { } item)
         {
             Visibility = Visibility.Collapsed;
             return;
@@ -115,13 +116,13 @@ public partial class SelectionOverlayView : UserControl
         Visibility = Visibility.Visible;
 
         var canonical = vm.CanonicalBounds;
-        var strokeMatrix = stroke.Transform.Matrix;
+        var itemMatrix = item.Transform.Matrix;
         var viewportTransform = ContentToViewport;
 
-        var tlVp = ProjectCorner(canonical.Left, canonical.Top, strokeMatrix, viewportTransform);
-        var trVp = ProjectCorner(canonical.Right, canonical.Top, strokeMatrix, viewportTransform);
-        var brVp = ProjectCorner(canonical.Right, canonical.Bottom, strokeMatrix, viewportTransform);
-        var blVp = ProjectCorner(canonical.Left, canonical.Bottom, strokeMatrix, viewportTransform);
+        var tlVp = ProjectCorner(canonical.Left, canonical.Top, itemMatrix, viewportTransform);
+        var trVp = ProjectCorner(canonical.Right, canonical.Top, itemMatrix, viewportTransform);
+        var brVp = ProjectCorner(canonical.Right, canonical.Bottom, itemMatrix, viewportTransform);
+        var blVp = ProjectCorner(canonical.Left, canonical.Bottom, itemMatrix, viewportTransform);
 
         SelectionBox.Points = new PointCollection { tlVp, trVp, brVp, blVp };
 
@@ -144,9 +145,9 @@ public partial class SelectionOverlayView : UserControl
         Canvas.SetTop(RotateHandle, puckCenter.Y - RotateHandleSize / 2.0);
     }
 
-    private static Point ProjectCorner(double x, double y, Matrix strokeMatrix, Transform? viewportTransform)
+    private static Point ProjectCorner(double x, double y, Matrix itemMatrix, Transform? viewportTransform)
     {
-        var content = strokeMatrix.Transform(new Point(x, y));
+        var content = itemMatrix.Transform(new Point(x, y));
         return viewportTransform is not null
             ? viewportTransform.Transform(content)
             : content;
@@ -160,7 +161,7 @@ public partial class SelectionOverlayView : UserControl
 
     private void OnRotateHandleMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (ViewModel is not { } vm || vm.SelectedStroke is not { } stroke || vm.CanonicalBounds.IsEmpty)
+        if (ViewModel is not { } vm || vm.SelectedItem is not { } item || vm.CanonicalBounds.IsEmpty)
         {
             return;
         }
@@ -170,8 +171,8 @@ public partial class SelectionOverlayView : UserControl
             canonical.X + canonical.Width / 2.0,
             canonical.Y + canonical.Height / 2.0);
 
-        var strokeMatrix = stroke.Transform.Matrix;
-        var centerWorld = strokeMatrix.Transform(canonicalCenter);
+        var itemMatrix = item.Transform.Matrix;
+        var centerWorld = itemMatrix.Transform(canonicalCenter);
 
         var viewportTransform = ContentToViewport;
         var centerViewport = viewportTransform is not null
@@ -180,8 +181,8 @@ public partial class SelectionOverlayView : UserControl
 
         var cursor = e.GetPosition(this);
 
-        _rotatingStroke = stroke;
-        _rotationBaseMatrix = strokeMatrix;
+        _rotatingItem = item;
+        _rotationBaseMatrix = itemMatrix;
         _rotationCenterWorld = centerWorld;
         _rotationCenterViewport = centerViewport;
         _rotationInitialAngle = Math.Atan2(cursor.Y - centerViewport.Y, cursor.X - centerViewport.X);
@@ -194,7 +195,7 @@ public partial class SelectionOverlayView : UserControl
     {
         base.OnMouseMove(e);
 
-        if (_rotatingStroke is null)
+        if (_rotatingItem is null)
         {
             return;
         }
@@ -202,19 +203,19 @@ public partial class SelectionOverlayView : UserControl
         var cursor = e.GetPosition(this);
         var currentAngle = Math.Atan2(cursor.Y - _rotationCenterViewport.Y, cursor.X - _rotationCenterViewport.X);
         var deltaDegrees = (currentAngle - _rotationInitialAngle) * 180.0 / Math.PI;
-        _rotatingStroke.RotateFrom(_rotationBaseMatrix, deltaDegrees, _rotationCenterWorld);
+        _rotatingItem.RotateFrom(_rotationBaseMatrix, deltaDegrees, _rotationCenterWorld);
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
 
-        if (_rotatingStroke is null)
+        if (_rotatingItem is null)
         {
             return;
         }
 
-        _rotatingStroke = null;
+        _rotatingItem = null;
         ReleaseMouseCapture();
         e.Handled = true;
     }

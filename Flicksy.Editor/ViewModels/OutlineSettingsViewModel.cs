@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
@@ -34,10 +35,34 @@ public partial class OutlineSettingsViewModel : ObservableObject
     private double size = 4;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveBrush))]
     private double opacity = 1;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveBrush))]
     private OutlineColorOption? selectedColor;
+
+    public Brush? EffectiveBrush
+    {
+        get
+        {
+            if (SelectedColor is null || SelectedColor.IsNone)
+            {
+                return null;
+            }
+
+            if (SelectedColor.Brush is not SolidColorBrush solid)
+            {
+                return SelectedColor.Brush;
+            }
+
+            var c = solid.Color;
+            var alpha = (byte)Math.Clamp((int)Math.Round(c.A * Opacity), 0, 255);
+            var brush = new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
+            brush.Freeze();
+            return brush;
+        }
+    }
 
     public ObservableCollection<OutlineColorOption> Colors { get; }
 

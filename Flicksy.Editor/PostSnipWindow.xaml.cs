@@ -41,6 +41,26 @@ public partial class PostSnipWindow : Window
         viewModel.SaveDialogRequested += OnSaveDialogRequested;
         viewModel.CloseRequested += OnCloseRequested;
         viewModel.ErrorOccurred += OnErrorOccurred;
+
+        PreviewKeyDown += OnWindowPreviewKeyDown;
+    }
+
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Delete)
+        {
+            return;
+        }
+
+        if (!ViewModel.SelectionOverlay.IsVisible)
+        {
+            return;
+        }
+
+        if (ViewModel.Drawing.DeleteSelectedItem())
+        {
+            e.Handled = true;
+        }
     }
 
     public PostSnipViewModel ViewModel { get; }

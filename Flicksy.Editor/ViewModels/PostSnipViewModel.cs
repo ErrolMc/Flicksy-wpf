@@ -34,15 +34,15 @@ public partial class PostSnipViewModel : ObservableObject
         Drawing = drawing;
         SelectionOverlay = new SelectionOverlayViewModel
         {
-            SelectedStroke = drawing.SelectedStroke,
+            SelectedItem = drawing.SelectedItem,
             IsActive = imageEditTools.IsSelectActive,
         };
 
         drawing.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(DrawingViewModel.SelectedStroke))
+            if (e.PropertyName == nameof(DrawingViewModel.SelectedItem))
             {
-                SelectionOverlay.SelectedStroke = drawing.SelectedStroke;
+                SelectionOverlay.SelectedItem = drawing.SelectedItem;
             }
         };
 
@@ -53,7 +53,7 @@ public partial class PostSnipViewModel : ObservableObject
                 SelectionOverlay.IsActive = imageEditTools.IsSelectActive;
                 if (!imageEditTools.IsSelectActive)
                 {
-                    drawing.SelectedStroke = null;
+                    drawing.SelectedItem = null;
                 }
             }
         };
@@ -158,9 +158,9 @@ public partial class PostSnipViewModel : ObservableObject
 
         try
         {
-            if (IsImage && Drawing.HasStrokes && ImageSource is BitmapSource bitmapSource)
+            if (IsImage && Drawing.HasItems && ImageSource is BitmapSource bitmapSource)
             {
-                SaveImageWithStrokes(bitmapSource, request.SelectedPath);
+                SaveImageWithDrawing(bitmapSource, request.SelectedPath);
             }
             else if (!string.Equals(Path.GetFullPath(request.SelectedPath), Path.GetFullPath(MediaPath), StringComparison.OrdinalIgnoreCase))
             {
@@ -175,7 +175,7 @@ public partial class PostSnipViewModel : ObservableObject
         }
     }
 
-    private void SaveImageWithStrokes(BitmapSource source, string destinationPath)
+    private void SaveImageWithDrawing(BitmapSource source, string destinationPath)
     {
         var width = source.Width;
         var height = source.Height;
@@ -185,23 +185,9 @@ public partial class PostSnipViewModel : ObservableObject
         {
             dc.DrawImage(source, new Rect(0, 0, width, height));
 
-            foreach (var stroke in Drawing.Strokes)
+            foreach (var item in Drawing.Items)
             {
-                if (stroke.Geometry == Geometry.Empty)
-                {
-                    continue;
-                }
-
-                var pen = new Pen(stroke.Brush, stroke.Thickness)
-                {
-                    StartLineCap = PenLineCap.Round,
-                    EndLineCap = PenLineCap.Round,
-                    LineJoin = PenLineJoin.Round,
-                };
-
-                dc.PushTransform(stroke.Transform);
-                dc.DrawGeometry(null, pen, stroke.Geometry);
-                dc.Pop();
+                item.Render(dc);
             }
         }
 

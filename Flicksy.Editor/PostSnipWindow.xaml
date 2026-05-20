@@ -164,6 +164,11 @@
                                           StrokeThickness="{Binding DataContext.ImageEditTools.PenSettings.Size, RelativeSource={RelativeSource AncestorType=Window}}"
                                           IsErasing="{Binding DataContext.ImageEditTools.IsEraseActive, RelativeSource={RelativeSource AncestorType=Window}}"
                                           IsSelectActive="{Binding DataContext.ImageEditTools.IsSelectActive, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          IsShapeActive="{Binding DataContext.ImageEditTools.IsShapesActive, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          ActiveShape="{Binding DataContext.ImageEditTools.ShapeSettings.SelectedShape.Kind, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          FillBrush="{Binding DataContext.ImageEditTools.ShapeSettings.FillSettings.EffectiveBrush, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          OutlineBrush="{Binding DataContext.ImageEditTools.ShapeSettings.OutlineSettings.EffectiveBrush, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          OutlineThickness="{Binding DataContext.ImageEditTools.ShapeSettings.OutlineSettings.Size, RelativeSource={RelativeSource AncestorType=Window}}"
                                           ContentScale="{Binding ElementName=ImageScaleTransform, Path=ScaleX}"
                                           IsHitTestVisible="{Binding DataContext.ImageEditTools.IsImageToolActive, RelativeSource={RelativeSource AncestorType=Window}}" />
                 </Canvas>

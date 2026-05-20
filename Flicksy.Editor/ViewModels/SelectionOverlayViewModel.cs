@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Flicksy.Editor.Source;
 
 namespace Flicksy.Editor.ViewModels;
 
@@ -9,7 +10,7 @@ public partial class SelectionOverlayViewModel : ObservableObject
 {
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsVisible))]
-    private Stroke? selectedStroke;
+    private DrawingItem? selectedItem;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsVisible))]
@@ -19,43 +20,44 @@ public partial class SelectionOverlayViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsVisible))]
     private Rect canonicalBounds = Rect.Empty;
 
-    public bool IsVisible => IsActive && SelectedStroke is not null && !CanonicalBounds.IsEmpty;
+    public bool IsVisible => IsActive && SelectedItem is not null && !CanonicalBounds.IsEmpty;
 
     public event EventHandler? TransformChanged;
 
-    partial void OnSelectedStrokeChanged(Stroke? oldValue, Stroke? newValue)
+    partial void OnSelectedItemChanged(DrawingItem? oldValue, DrawingItem? newValue)
     {
         if (oldValue is not null)
         {
-            oldValue.PropertyChanged -= OnStrokePropertyChanged;
-            oldValue.Transform.Changed -= OnStrokeTransformChanged;
+            oldValue.PropertyChanged -= OnItemPropertyChanged;
+            oldValue.Transform.Changed -= OnItemTransformChanged;
         }
 
         if (newValue is not null)
         {
-            newValue.PropertyChanged += OnStrokePropertyChanged;
-            newValue.Transform.Changed += OnStrokeTransformChanged;
+            newValue.PropertyChanged += OnItemPropertyChanged;
+            newValue.Transform.Changed += OnItemTransformChanged;
         }
 
         RecomputeCanonicalBounds();
         TransformChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnStrokePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(Stroke.Geometry) || e.PropertyName == nameof(Stroke.Thickness))
+        // Recompute bounds whenever the item's geometry or any derived property changes.
+        if (e.PropertyName == nameof(DrawingItem.Geometry))
         {
             RecomputeCanonicalBounds();
         }
     }
 
-    private void OnStrokeTransformChanged(object? sender, EventArgs e)
+    private void OnItemTransformChanged(object? sender, EventArgs e)
     {
         TransformChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void RecomputeCanonicalBounds()
     {
-        CanonicalBounds = SelectedStroke?.CanonicalBounds ?? Rect.Empty;
+        CanonicalBounds = SelectedItem?.CanonicalBounds ?? Rect.Empty;
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
@@ -27,10 +28,34 @@ public partial class FillColorOption : ObservableObject
 public partial class FillSettingsViewModel : ObservableObject
 {
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveBrush))]
     private double opacity = 1;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveBrush))]
     private FillColorOption? selectedColor;
+
+    public Brush? EffectiveBrush
+    {
+        get
+        {
+            if (SelectedColor is null || SelectedColor.IsNone)
+            {
+                return null;
+            }
+
+            if (SelectedColor.Brush is not SolidColorBrush solid)
+            {
+                return SelectedColor.Brush;
+            }
+
+            var c = solid.Color;
+            var alpha = (byte)Math.Clamp((int)Math.Round(c.A * Opacity), 0, 255);
+            var brush = new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
+            brush.Freeze();
+            return brush;
+        }
+    }
 
     public ObservableCollection<FillColorOption> Colors { get; }
 
@@ -39,7 +64,7 @@ public partial class FillSettingsViewModel : ObservableObject
     public FillSettingsViewModel()
     {
         Colors = new ObservableCollection<FillColorOption>(CreateColors());
-        SelectColor(Colors[1]);
+        SelectColor(Colors[0]);
     }
 
     [RelayCommand]

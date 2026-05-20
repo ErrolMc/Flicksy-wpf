@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Flicksy.Editor.ViewModels"
+             xmlns:src="clr-namespace:Flicksy.Editor.Source"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:DrawingViewModel, IsDesignTimeCreatable=False}"
              Background="Transparent"
@@ -12,14 +13,9 @@
              MouseMove="OnMouseMove"
              MouseLeftButtonUp="OnMouseUp">
     <ItemsControl IsHitTestVisible="False"
-                  ItemsSource="{Binding Strokes}">
-        <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-                <Grid />
-            </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-            <DataTemplate>
+                  ItemsSource="{Binding Items}">
+        <ItemsControl.Resources>
+            <DataTemplate DataType="{x:Type src:PenStrokeItem}">
                 <Path Data="{Binding Geometry}"
                       Stroke="{Binding Brush}"
                       StrokeThickness="{Binding Thickness}"
@@ -30,6 +26,23 @@
                       UseLayoutRounding="False"
                       RenderTransform="{Binding Transform}" />
             </DataTemplate>
-        </ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type src:ShapeItem}">
+                <Path Data="{Binding Geometry}"
+                      Stroke="{Binding EffectiveStroke}"
+                      Fill="{Binding EffectiveFill}"
+                      StrokeThickness="{Binding OutlineThickness}"
+                      StrokeLineJoin="Round"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      SnapsToDevicePixels="False"
+                      UseLayoutRounding="False"
+                      RenderTransform="{Binding Transform}" />
+            </DataTemplate>
+        </ItemsControl.Resources>
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <Grid />
+            </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
     </ItemsControl>
 </UserControl>
