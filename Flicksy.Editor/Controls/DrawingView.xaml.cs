@@ -675,12 +675,27 @@ public partial class DrawingView : UserControl
             return;
         }
 
-        var canonical = selected.CanonicalBounds;
-        var (anchorCanonical, grabbedCanonical) = GetAnchorAndGrabbed(canonical, corner);
+        // Use a unit diagonal based on which corner is grabbed (independent of the item's
+        // aspect ratio), then rotate it by the item's rotation so cursors stay diagonal on
+        // corners regardless of width/height — only the rotation changes the cursor bucket.
+        var unitDiagonal = corner switch
+        {
+            CornerKind.TopLeft => new Vector(-1, -1),
+            CornerKind.TopRight => new Vector(1, -1),
+            CornerKind.BottomLeft => new Vector(-1, 1),
+            CornerKind.BottomRight => new Vector(1, 1),
+            _ => new Vector(1, 1),
+        };
+
         var m = selected.Transform.Matrix;
-        var anchorWorld = m.Transform(anchorCanonical);
-        var grabbedWorld = m.Transform(grabbedCanonical);
-        Cursor = CursorForDiagonal(grabbedWorld - anchorWorld);
+        var rotation = Math.Atan2(m.M12, m.M11);
+        var cos = Math.Cos(rotation);
+        var sin = Math.Sin(rotation);
+        var rotated = new Vector(
+            unitDiagonal.X * cos - unitDiagonal.Y * sin,
+            unitDiagonal.X * sin + unitDiagonal.Y * cos);
+
+        Cursor = CursorForDiagonal(rotated);
     }
 
     private static Cursor CursorForDiagonal(Vector diagonal)
