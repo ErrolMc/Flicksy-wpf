@@ -4,7 +4,7 @@ using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
-namespace Flicksy.Editor.Extensions;
+namespace Flicksy.Editor.Helpers;
 
 public static class BitmapExtensions
 {

@@ -74,10 +74,7 @@
                      SnapsToDevicePixels="False"
                      UseLayoutRounding="False"
                      CaretBrush="Black"
-                     SelectionBrush="#660078D4"
-                     TextChanged="OnEditTextBoxTextChanged"
-                     LostKeyboardFocus="OnEditTextBoxLostFocus"
-                     PreviewKeyDown="OnEditTextBoxPreviewKeyDown" />
+                     SelectionBrush="#660078D4" />
         </Canvas>
     </Grid>
 </UserControl>

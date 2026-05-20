@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Flicksy.Editor.Extensions;
+using Flicksy.Editor.Helpers;
 using Flicksy.Editor.Properties;
 
 namespace Flicksy.Editor.ViewModels;
