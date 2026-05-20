@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Flicksy.Editor.Helpers;
 using Flicksy.Editor.Properties;
+using Flicksy.Editor.Source;
 
 namespace Flicksy.Editor.ViewModels;
 
@@ -91,6 +92,25 @@ public partial class TextSettingsViewModel : ObservableObject
         {
             _lastOutlinePopupCloseAt = DateTime.UtcNow;
         }
+    }
+
+    /// <summary>
+    /// Drive every setting from an existing text item — used when the user selects a text
+    /// item so the settings popup reflects what's actually on the canvas. The cascade
+    /// through <c>OnSelectedTextStyleChanged</c> writes these values back to the same
+    /// item; the <c>SetProperty</c> guards in <see cref="TextItem"/> short-circuit no-op
+    /// writes so it doesn't churn geometry.
+    /// </summary>
+    public void SyncFromTextItem(TextItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.FontFamily))
+        {
+            SelectedFont = item.FontFamily;
+        }
+        FontSize = Math.Clamp(item.FontSize, MinFontSize, MaxFontSize);
+        FillSettings.SyncFromBrush(item.Fill);
+        OutlineSettings.SyncFromBrush(item.Outline);
+        OutlineSettings.Size = Math.Clamp(item.OutlineThickness, OutlineSettings.MinSize, OutlineSettings.MaxSize);
     }
 
     private static IEnumerable<string> CreateFonts()

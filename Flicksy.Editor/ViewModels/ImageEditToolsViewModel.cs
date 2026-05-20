@@ -51,6 +51,7 @@ public partial class ImageEditToolsViewModel : ObservableObject
         Shapes = Resources.shapes.ToImageSource();
         Text = Resources.text.ToImageSource();
         UpArrow = Resources.up_arrow.ToImageSource();
+        Undo = Resources.undo.ToImageSource();
     }
 
     public ImageSource Cursor { get; }
@@ -66,6 +67,8 @@ public partial class ImageEditToolsViewModel : ObservableObject
     public ImageSource Text { get; }
 
     public ImageSource UpArrow { get; }
+
+    public ImageSource Undo { get; }
 
     public PenSettingsViewModel PenSettings { get; } = new();
 

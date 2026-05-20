@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Input;
 using Flicksy.Editor.Helpers;
+using Flicksy.Editor.Undo;
+using Flicksy.Editor.Undo.Commands;
 using Flicksy.Editor.ViewModels;
 
 namespace Flicksy.Editor.Interaction.Tools;
@@ -15,6 +18,7 @@ public sealed class EraseTool : IDrawingTool
 {
     private readonly IDrawingSurface _surface;
     private readonly DrawingViewModel _viewModel;
+    private readonly List<IUndoableCommand> _gestureRemovals = new();
 
     private bool _erasing;
 
@@ -28,6 +32,7 @@ public sealed class EraseTool : IDrawingTool
 
     public bool OnPointerDown(Point point, MouseButtonEventArgs e)
     {
+        _gestureRemovals.Clear();
         EraseAt(point);
         _erasing = true;
         _surface.CapturePointer();
@@ -49,6 +54,16 @@ public sealed class EraseTool : IDrawingTool
             EraseAt(clamped);
         }
 
+        if (_gestureRemovals.Count == 1)
+        {
+            _viewModel.History.Push(_gestureRemovals[0]);
+        }
+        else if (_gestureRemovals.Count > 1)
+        {
+            _viewModel.History.Push(new CompositeCommand(_viewModel, _gestureRemovals.ToArray()));
+        }
+        _gestureRemovals.Clear();
+
         _surface.ReleasePointer();
         _erasing = false;
     }
@@ -62,7 +77,13 @@ public sealed class EraseTool : IDrawingTool
     {
         if (DrawingMath.HitTestTopmost(_viewModel.Items, point) is { } hit)
         {
+            var index = _viewModel.Items.IndexOf(hit);
+            if (index < 0)
+            {
+                return;
+            }
             _viewModel.Items.Remove(hit);
+            _gestureRemovals.Add(new RemoveItemCommand(_viewModel, hit, index));
         }
     }
 }

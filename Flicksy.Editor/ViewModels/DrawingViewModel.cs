@@ -5,13 +5,30 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Flicksy.Editor.Source;
+using Flicksy.Editor.Undo;
+using Flicksy.Editor.Undo.Commands;
 
 namespace Flicksy.Editor.ViewModels;
 
 public partial class DrawingViewModel : ObservableObject
 {
     private PenStrokeItem? _currentPen;
+    private int _currentPenIndex = -1;
     private ShapeItem? _currentShape;
+    private int _currentShapeIndex = -1;
+
+    // Per-text-edit-session state. Captured in BeginEditText; consumed by EndEditText.
+    private TextItem? _editOriginalItem;
+    private string _editOriginalText = string.Empty;
+    private bool _editIsNewItem;
+    private int _editOriginalIndex = -1;
+
+    // BeginText sets this so the next BeginEditText knows the edit is for a brand-new item.
+    private TextItem? _pendingNewTextItem;
+
+    // Style-edit session state (popup-batched). Captured in BeginTextStyleEdit.
+    private TextItem? _styleEditItem;
+    private TextStyleSnapshot _styleEditBefore;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedItem))]
@@ -27,9 +44,12 @@ public partial class DrawingViewModel : ObservableObject
     public DrawingViewModel()
     {
         Items.CollectionChanged += OnItemsChanged;
+        History = new UndoManager();
     }
 
     public ObservableCollection<DrawingItem> Items { get; } = new();
+
+    public UndoManager History { get; }
 
     public bool HasItems => Items.Count > 0;
 
@@ -54,6 +74,7 @@ public partial class DrawingViewModel : ObservableObject
         }
 
         Items.Move(index, index + 1);
+        History.Push(new MoveLayerCommand(this, item, index, index + 1));
     }
 
     [RelayCommand(CanExecute = nameof(CanMoveSelectedItemDown))]
@@ -71,12 +92,14 @@ public partial class DrawingViewModel : ObservableObject
         }
 
         Items.Move(index, index - 1);
+        History.Push(new MoveLayerCommand(this, item, index, index - 1));
     }
 
     public void BeginPenStroke(Point point, Brush brush, double thickness)
     {
         _currentPen = new PenStrokeItem(brush, thickness);
         _currentPen.AddPoint(point);
+        _currentPenIndex = Items.Count;
         Items.Add(_currentPen);
     }
 
@@ -87,7 +110,15 @@ public partial class DrawingViewModel : ObservableObject
 
     public void EndPenStroke()
     {
+        if (_currentPen is { } pen && _currentPenIndex >= 0)
+        {
+            // The stroke is already in Items; the command snapshots the final-state reference
+            // so undo removes it and redo re-inserts at the same z-order.
+            History.Push(new AddItemCommand(this, pen, _currentPenIndex));
+        }
+
         _currentPen = null;
+        _currentPenIndex = -1;
     }
 
     public void BeginShape(Point point, ShapeKind kind, Brush? fill, Brush? outline, double outlineThickness)
@@ -96,10 +127,12 @@ public partial class DrawingViewModel : ObservableObject
         if (outline is null && (kind is ShapeKind.Line or ShapeKind.Arrow || fill is null))
         {
             _currentShape = null;
+            _currentShapeIndex = -1;
             return;
         }
 
         _currentShape = new ShapeItem(kind, point, fill, outline, outlineThickness);
+        _currentShapeIndex = Items.Count;
         Items.Add(_currentShape);
     }
 
@@ -110,12 +143,20 @@ public partial class DrawingViewModel : ObservableObject
 
     public void EndShape()
     {
-        if (_currentShape is { } shape && shape.IsDegenerate)
+        if (_currentShape is { } shape)
         {
-            Items.Remove(shape);
+            if (shape.IsDegenerate)
+            {
+                Items.Remove(shape);
+            }
+            else if (_currentShapeIndex >= 0)
+            {
+                History.Push(new AddItemCommand(this, shape, _currentShapeIndex));
+            }
         }
 
         _currentShape = null;
+        _currentShapeIndex = -1;
     }
 
     public TextItem BeginText(Point origin, string fontFamily, double fontSize, Brush? fill, Brush? outline, double outlineThickness)
@@ -123,6 +164,7 @@ public partial class DrawingViewModel : ObservableObject
         var item = new TextItem(origin, fontFamily, fontSize, fill, outline, outlineThickness);
         Items.Add(item);
         SelectedItem = item;
+        _pendingNewTextItem = item;
         return item;
     }
 
@@ -132,6 +174,12 @@ public partial class DrawingViewModel : ObservableObject
         {
             EndEditText(commit: true);
         }
+
+        _editOriginalItem = item;
+        _editOriginalText = item.Text;
+        _editIsNewItem = ReferenceEquals(_pendingNewTextItem, item);
+        _editOriginalIndex = _editIsNewItem ? Items.IndexOf(item) : -1;
+        _pendingNewTextItem = null;
 
         SelectedItem = item;
         item.IsEditing = true;
@@ -148,16 +196,76 @@ public partial class DrawingViewModel : ObservableObject
         item.IsEditing = false;
         EditingTextItem = null;
 
+        var wasNewItem = _editIsNewItem && ReferenceEquals(_editOriginalItem, item);
+        var originalText = ReferenceEquals(_editOriginalItem, item) ? _editOriginalText : item.Text;
+        var originalIndex = _editOriginalIndex;
+
+        // Clear the captured session state before pushing the command so a re-entrant
+        // BeginEditText (e.g. from inside the redo path) doesn't see stale data.
+        _editOriginalItem = null;
+        _editOriginalText = string.Empty;
+        _editIsNewItem = false;
+        _editOriginalIndex = -1;
+
         if (commit && item.IsEmpty)
         {
             Items.Remove(item);
+            return;
+        }
+
+        if (!commit)
+        {
+            return;
+        }
+
+        if (wasNewItem && originalIndex >= 0)
+        {
+            History.Push(new AddItemCommand(this, item, originalIndex));
+        }
+        else if (!wasNewItem && !string.Equals(originalText, item.Text, System.StringComparison.Ordinal))
+        {
+            History.Push(new TextEditCommand(this, item, originalText, item.Text));
+        }
+    }
+
+    public void BeginTextStyleEdit(TextItem item)
+    {
+        _styleEditItem = item;
+        _styleEditBefore = TextStyleSnapshot.Capture(item);
+    }
+
+    public void EndTextStyleEdit()
+    {
+        if (_styleEditItem is not { } item)
+        {
+            return;
+        }
+
+        var before = _styleEditBefore;
+        _styleEditItem = null;
+        _styleEditBefore = default;
+
+        var after = TextStyleSnapshot.Capture(item);
+        if (!before.Equals(after) && Items.Contains(item))
+        {
+            History.Push(new TextStyleCommand(this, item, before, after));
         }
     }
 
     public void Clear()
     {
         _currentPen = null;
+        _currentPenIndex = -1;
         _currentShape = null;
+        _currentShapeIndex = -1;
+        _editOriginalItem = null;
+        _editOriginalText = string.Empty;
+        _editIsNewItem = false;
+        _editOriginalIndex = -1;
+        _pendingNewTextItem = null;
+        _styleEditItem = null;
+        _styleEditBefore = default;
+
         if (EditingTextItem is { } editing)
         {
             editing.IsEditing = false;
@@ -165,6 +273,7 @@ public partial class DrawingViewModel : ObservableObject
         EditingTextItem = null;
         SelectedItem = null;
         Items.Clear();
+        History.Reset();
     }
 
     public bool DeleteSelectedItem()
@@ -174,8 +283,19 @@ public partial class DrawingViewModel : ObservableObject
             return false;
         }
 
+        var index = Items.IndexOf(item);
+        if (index < 0)
+        {
+            return false;
+        }
+
         // OnItemsChanged will null out SelectedItem when the collection no longer contains it.
-        return Items.Remove(item);
+        var removed = Items.Remove(item);
+        if (removed)
+        {
+            History.Push(new RemoveItemCommand(this, item, index));
+        }
+        return removed;
     }
 
     private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)

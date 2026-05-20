@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Flicksy.Editor.Helpers;
 using Flicksy.Editor.Source;
+using Flicksy.Editor.Undo.Commands;
 using Flicksy.Editor.ViewModels;
 
 namespace Flicksy.Editor.Interaction.Tools;
@@ -125,16 +126,26 @@ public sealed class SelectTool : IDrawingTool
 
     public void OnPointerUp(Point point, MouseButtonEventArgs e)
     {
-        if (_scalingItem is not null)
+        if (_scalingItem is { } scaling)
         {
+            var finalMatrix = scaling.Transform.Matrix;
+            if (!finalMatrix.Equals(_scaleBaseMatrix))
+            {
+                _viewModel.History.Push(new TransformCommand(_viewModel, scaling, _scaleBaseMatrix, finalMatrix));
+            }
             _scalingItem = null;
             _surface.ReleasePointer();
             e.Handled = true;
             return;
         }
 
-        if (_draggingItem is not null)
+        if (_draggingItem is { } dragging)
         {
+            var finalMatrix = dragging.Transform.Matrix;
+            if (!finalMatrix.Equals(_moveBaseMatrix))
+            {
+                _viewModel.History.Push(new TransformCommand(_viewModel, dragging, _moveBaseMatrix, finalMatrix));
+            }
             _draggingItem = null;
             _surface.ReleasePointer();
             e.Handled = true;

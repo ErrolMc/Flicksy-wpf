@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -77,6 +78,50 @@ public partial class FillSettingsViewModel : ObservableObject
 
         option.IsSelected = true;
         SelectedColor = option;
+    }
+
+    /// <summary>
+    /// Drive the selected swatch + opacity from an existing brush (e.g. the fill of a
+    /// text item just selected by the user). Null is treated as "none". Unmatched brushes
+    /// leave the VM unchanged.
+    /// </summary>
+    public void SyncFromBrush(Brush? brush)
+    {
+        if (brush is null)
+        {
+            var noneOption = Colors.FirstOrDefault(o => o.IsNone);
+            if (noneOption is not null && !ReferenceEquals(SelectedColor, noneOption))
+            {
+                SelectColor(noneOption);
+            }
+            return;
+        }
+
+        if (brush is not SolidColorBrush solid)
+        {
+            return;
+        }
+
+        var target = solid.Color;
+        foreach (var option in Colors)
+        {
+            if (option.IsNone || option.Brush is not SolidColorBrush swatch)
+            {
+                continue;
+            }
+            var s = swatch.Color;
+            if (s.R != target.R || s.G != target.G || s.B != target.B)
+            {
+                continue;
+            }
+
+            if (!ReferenceEquals(SelectedColor, option))
+            {
+                SelectColor(option);
+            }
+            Opacity = s.A == 0 ? 1d : Math.Clamp(target.A / (double)s.A, 0d, 1d);
+            return;
+        }
     }
 
     private static IEnumerable<FillColorOption> CreateColors()

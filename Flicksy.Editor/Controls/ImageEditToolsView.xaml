@@ -211,9 +211,39 @@
                    StaysOpen="False"
                    AllowsTransparency="True"
                    IsOpen="{Binding IsTextSettingsOpen, Mode=TwoWay}"
-                   Opened="OnTextSettingsPopupOpened">
+                   Opened="OnTextSettingsPopupOpened"
+                   Closed="OnTextSettingsPopupClosed">
                 <controls:TextSettingsView DataContext="{Binding TextSettings}" />
             </Popup>
+            <Rectangle Width="1"
+                       Fill="{StaticResource ToolsPanelBorderBrush}"
+                       VerticalAlignment="Stretch"
+                       Margin="4,6,4,6" />
+            <Button x:Name="UndoButton"
+                    Command="{Binding DataContext.Drawing.History.UndoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    Style="{StaticResource ToolIconButtonStyle}"
+                    ToolTip="Undo (Ctrl+Z)"
+                    Margin="0,0,4,0">
+                <Grid Width="28" Height="28">
+                    <Image Source="{Binding Undo}" Width="28" Height="28" Stretch="Uniform" />
+                </Grid>
+            </Button>
+            <Button x:Name="RedoButton"
+                    Command="{Binding DataContext.Drawing.History.RedoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    Style="{StaticResource ToolIconButtonStyle}"
+                    ToolTip="Redo (Ctrl+Y)">
+                <Grid Width="28" Height="28">
+                    <Image Source="{Binding Undo}"
+                           Width="28"
+                           Height="28"
+                           Stretch="Uniform"
+                           RenderTransformOrigin="0.5,0.5">
+                        <Image.RenderTransform>
+                            <ScaleTransform ScaleX="-1" />
+                        </Image.RenderTransform>
+                    </Image>
+                </Grid>
+            </Button>
             </StackPanel>
         </Grid>
     </Border>
