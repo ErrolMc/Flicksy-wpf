@@ -98,7 +98,8 @@ public partial class SelectionOverlayView : UserControl
         if (e.PropertyName is nameof(SelectionOverlayViewModel.CanonicalBounds)
             or nameof(SelectionOverlayViewModel.IsVisible)
             or nameof(SelectionOverlayViewModel.SelectedItem)
-            or nameof(SelectionOverlayViewModel.IsActive))
+            or nameof(SelectionOverlayViewModel.IsActive)
+            or nameof(SelectionOverlayViewModel.ShowHandles))
         {
             UpdateLayoutFromState();
         }
@@ -125,6 +126,13 @@ public partial class SelectionOverlayView : UserControl
         var blVp = ProjectCorner(canonical.Left, canonical.Bottom, itemMatrix, viewportTransform);
 
         SelectionBox.Points = new PointCollection { tlVp, trVp, brVp, blVp };
+
+        var handleVisibility = vm.ShowHandles ? Visibility.Visible : Visibility.Collapsed;
+        HandleTopLeft.Visibility = handleVisibility;
+        HandleTopRight.Visibility = handleVisibility;
+        HandleBottomLeft.Visibility = handleVisibility;
+        HandleBottomRight.Visibility = handleVisibility;
+        RotateHandle.Visibility = handleVisibility;
 
         PositionHandle(HandleTopLeft, tlVp);
         PositionHandle(HandleTopRight, trVp);

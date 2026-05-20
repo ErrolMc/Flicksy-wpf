@@ -42,16 +42,55 @@ public partial class PostSnipViewModel : ObservableObject
         {
             if (e.PropertyName == nameof(DrawingViewModel.SelectedItem))
             {
+                // Committing any in-progress text edit before the selection moves elsewhere.
+                if (drawing.EditingTextItem is { } editing && !ReferenceEquals(editing, drawing.SelectedItem))
+                {
+                    drawing.EndEditText(commit: true);
+                }
+
                 SelectionOverlay.SelectedItem = drawing.SelectedItem;
+            }
+            else if (e.PropertyName == nameof(DrawingViewModel.EditingTextItem))
+            {
+                // Whenever a text edit begins, make sure the Text tool is the active tool so
+                // its settings popup (font/size/fill/outline) targets the editing item.
+                if (drawing.EditingTextItem is not null && !imageEditTools.IsTextActive)
+                {
+                    imageEditTools.SelectedTool = ImageEditTool.Text;
+                }
+
+                // Show the selection overlay around the text being edited, regardless of tool.
+                SelectionOverlay.IsActive = imageEditTools.IsSelectActive || drawing.EditingTextItem is not null;
             }
         };
 
         imageEditTools.PropertyChanged += (_, e) =>
         {
+            if (e.PropertyName == nameof(ImageEditToolsViewModel.SelectedTool))
+            {
+                // Commit any active text edit when switching away from the text tool.
+                if (!imageEditTools.IsTextActive)
+                {
+                    drawing.EndEditText(commit: true);
+                }
+
+                // Hide selection corner/rotate handles whenever the Text tool is active
+                // (with or without an in-progress edit) to keep focus on typing.
+                SelectionOverlay.ShowHandles = !imageEditTools.IsTextActive;
+            }
+
             if (e.PropertyName == nameof(ImageEditToolsViewModel.IsSelectActive))
             {
-                SelectionOverlay.IsActive = imageEditTools.IsSelectActive;
-                if (!imageEditTools.IsSelectActive)
+                var keepTextSelection = imageEditTools.IsTextActive
+                    && drawing.SelectedItem is Source.TextItem;
+
+                SelectionOverlay.IsActive = imageEditTools.IsSelectActive
+                    || drawing.EditingTextItem is not null
+                    || keepTextSelection;
+
+                if (!imageEditTools.IsSelectActive
+                    && drawing.EditingTextItem is null
+                    && !keepTextSelection)
                 {
                     drawing.SelectedItem = null;
                 }

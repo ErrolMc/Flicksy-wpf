@@ -20,6 +20,9 @@ public partial class SelectionOverlayViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsVisible))]
     private Rect canonicalBounds = Rect.Empty;
 
+    [ObservableProperty]
+    private bool showHandles = true;
+
     public bool IsVisible => IsActive && SelectedItem is not null && !CanonicalBounds.IsEmpty;
 
     public event EventHandler? TransformChanged;

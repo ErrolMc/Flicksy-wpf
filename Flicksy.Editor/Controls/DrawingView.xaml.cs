@@ -1,4 +1,6 @@
 using System;
+using System.ComponentModel;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -52,6 +54,41 @@ public partial class DrawingView : UserControl
             typeof(DrawingView),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty TextFontFamilyProperty =
+        DependencyProperty.Register(
+            nameof(TextFontFamily),
+            typeof(string),
+            typeof(DrawingView),
+            new PropertyMetadata("Segoe UI", OnSelectedTextStyleChanged));
+
+    public static readonly DependencyProperty TextFontSizeProperty =
+        DependencyProperty.Register(
+            nameof(TextFontSize),
+            typeof(double),
+            typeof(DrawingView),
+            new PropertyMetadata(24.0, OnSelectedTextStyleChanged));
+
+    public static readonly DependencyProperty TextFillBrushProperty =
+        DependencyProperty.Register(
+            nameof(TextFillBrush),
+            typeof(Brush),
+            typeof(DrawingView),
+            new PropertyMetadata(null, OnSelectedTextStyleChanged));
+
+    public static readonly DependencyProperty TextOutlineBrushProperty =
+        DependencyProperty.Register(
+            nameof(TextOutlineBrush),
+            typeof(Brush),
+            typeof(DrawingView),
+            new PropertyMetadata(null, OnSelectedTextStyleChanged));
+
+    public static readonly DependencyProperty TextOutlineThicknessProperty =
+        DependencyProperty.Register(
+            nameof(TextOutlineThickness),
+            typeof(double),
+            typeof(DrawingView),
+            new PropertyMetadata(4.0, OnSelectedTextStyleChanged));
+
     public static readonly DependencyProperty ActiveShapeProperty =
         DependencyProperty.Register(
             nameof(ActiveShape),
@@ -90,6 +127,7 @@ public partial class DrawingView : UserControl
     public DrawingView()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
     }
 
     public Brush StrokeBrush
@@ -126,6 +164,36 @@ public partial class DrawingView : UserControl
     {
         get => (bool)GetValue(IsTextActiveProperty);
         set => SetValue(IsTextActiveProperty, value);
+    }
+
+    public string TextFontFamily
+    {
+        get => (string)GetValue(TextFontFamilyProperty);
+        set => SetValue(TextFontFamilyProperty, value);
+    }
+
+    public double TextFontSize
+    {
+        get => (double)GetValue(TextFontSizeProperty);
+        set => SetValue(TextFontSizeProperty, value);
+    }
+
+    public Brush? TextFillBrush
+    {
+        get => (Brush?)GetValue(TextFillBrushProperty);
+        set => SetValue(TextFillBrushProperty, value);
+    }
+
+    public Brush? TextOutlineBrush
+    {
+        get => (Brush?)GetValue(TextOutlineBrushProperty);
+        set => SetValue(TextOutlineBrushProperty, value);
+    }
+
+    public double TextOutlineThickness
+    {
+        get => (double)GetValue(TextOutlineThicknessProperty);
+        set => SetValue(TextOutlineThicknessProperty, value);
     }
 
     public ShapeKind ActiveShape
@@ -180,6 +248,14 @@ public partial class DrawingView : UserControl
     {
         if (ViewModel is null || !TryGetPoint(e, clampToBounds: false, out var point))
         {
+            return;
+        }
+
+        // Double-click on a TextItem (in Select mode) starts editing without dragging.
+        if (e.ClickCount >= 2 && IsSelectActive && HitTestItem(point) is TextItem doubleClickedText)
+        {
+            ViewModel.BeginEditText(doubleClickedText);
+            e.Handled = true;
             return;
         }
 
@@ -251,6 +327,23 @@ public partial class DrawingView : UserControl
 
         if (IsTextActive)
         {
+            // If clicking on existing text, edit it; otherwise create a new text item.
+            var hit = HitTestItem(point);
+            if (hit is TextItem existing)
+            {
+                ViewModel.BeginEditText(existing);
+            }
+            else
+            {
+                var created = ViewModel.BeginText(
+                    point,
+                    TextFontFamily,
+                    TextFontSize,
+                    TextFillBrush,
+                    TextOutlineBrush,
+                    TextOutlineThickness);
+                ViewModel.BeginEditText(created);
+            }
             e.Handled = true;
             return;
         }
@@ -630,5 +723,273 @@ public partial class DrawingView : UserControl
         var dx = a.X - b.X;
         var dy = a.Y - b.Y;
         return (dx * dx) + (dy * dy);
+    }
+
+    // ---------- Text editing ----------
+
+    private DrawingViewModel? _subscribedViewModel;
+    private TextItem? _editingItem;
+    private bool _suppressEditTextSync;
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_subscribedViewModel is not null)
+        {
+            _subscribedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _subscribedViewModel = null;
+        }
+
+        if (e.NewValue is DrawingViewModel vm)
+        {
+            _subscribedViewModel = vm;
+            vm.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
+        ApplyEditingTextItem(ViewModel?.EditingTextItem);
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DrawingViewModel.EditingTextItem))
+        {
+            ApplyEditingTextItem(ViewModel?.EditingTextItem);
+        }
+    }
+
+    private void ApplyEditingTextItem(TextItem? item)
+    {
+        if (ReferenceEquals(_editingItem, item))
+        {
+            return;
+        }
+
+        if (_editingItem is not null)
+        {
+            _editingItem.PropertyChanged -= OnEditingItemPropertyChanged;
+            _editingItem.Transform.Changed -= OnEditingItemTransformChanged;
+        }
+
+        _editingItem = item;
+
+        if (item is null)
+        {
+            EditTextBox.Visibility = Visibility.Collapsed;
+            EditTextBox.RenderTransform = Transform.Identity;
+            _suppressEditTextSync = true;
+            EditTextBox.Text = string.Empty;
+            _suppressEditTextSync = false;
+            return;
+        }
+
+        item.PropertyChanged += OnEditingItemPropertyChanged;
+        item.Transform.Changed += OnEditingItemTransformChanged;
+
+        ConfigureEditTextBoxForItem(item);
+
+        _suppressEditTextSync = true;
+        EditTextBox.Text = item.Text;
+        _suppressEditTextSync = false;
+
+        EditTextBox.Visibility = Visibility.Visible;
+        PositionEditTextBox(item);
+
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (!ReferenceEquals(_editingItem, item))
+            {
+                return;
+            }
+
+            Keyboard.Focus(EditTextBox);
+            EditTextBox.Focus();
+            EditTextBox.CaretIndex = EditTextBox.Text.Length;
+            EditTextBox.SelectAll();
+        }), System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    private void ConfigureEditTextBoxForItem(TextItem item)
+    {
+        EditTextBox.FontFamily = new FontFamily(item.FontFamily);
+        EditTextBox.FontSize = item.FontSize;
+        // Keep the textbox content invisible while editing so the live-rendered geometry
+        // (with fill AND outline) shows through; the caret remains visible via CaretBrush.
+        EditTextBox.Foreground = Brushes.Transparent;
+        EditTextBox.CaretBrush = item.Fill ?? item.Outline ?? Brushes.Black;
+    }
+
+    private void PositionEditTextBox(TextItem item)
+    {
+        var matrix = item.Transform.Matrix;
+
+        // Align the textbox's first-line baseline with the geometry's baseline.
+        // Geometry baseline in canonical Y = item.Origin.Y + FormattedText.Baseline.
+        // TextBox first-line baseline in textbox-local Y = MeasureFirstLineBaseline(...).
+        // Canvas position is in DrawingView coords; the item's linear (rotation/scale) part
+        // is applied as RenderTransform around the textbox's top-left.
+        var formattedBaseline = GetFormattedTextBaseline(item.FontFamily, item.FontSize);
+        var textBoxBaseline = MeasureFirstLineBaseline(item.FontFamily, item.FontSize);
+        var baselineDelta = formattedBaseline - textBoxBaseline;
+
+        var worldOrigin = matrix.Transform(item.Origin);
+        var offsetX = matrix.M21 * baselineDelta;
+        var offsetY = matrix.M22 * baselineDelta;
+
+        Canvas.SetLeft(EditTextBox, worldOrigin.X + offsetX);
+        Canvas.SetTop(EditTextBox, worldOrigin.Y + offsetY);
+
+        // Give the textbox a sensible minimum size so the caret stays visible when empty.
+        EditTextBox.MinWidth = Math.Max(item.CanonicalBounds.Width, item.FontSize * 0.5);
+        EditTextBox.MinHeight = Math.Max(item.CanonicalBounds.Height, item.FontSize * 1.2);
+
+        var rotationScale = new Matrix(matrix.M11, matrix.M12, matrix.M21, matrix.M22, 0, 0);
+        EditTextBox.RenderTransformOrigin = new Point(0, 0);
+        EditTextBox.RenderTransform = rotationScale.IsIdentity
+            ? Transform.Identity
+            : new MatrixTransform(rotationScale);
+    }
+
+    private static double GetFormattedTextBaseline(string fontFamilyName, double fontSize)
+    {
+        var typeface = new Typeface(
+            new FontFamily(fontFamilyName),
+            FontStyles.Normal,
+            FontWeights.Normal,
+            FontStretches.Normal);
+        var formatted = new FormattedText(
+            "Hg",
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            fontSize,
+            Brushes.Black,
+            1.0);
+        return formatted.Baseline;
+    }
+
+    private static double MeasureFirstLineBaseline(string fontFamilyName, double fontSize)
+    {
+        var probe = new TextBlock
+        {
+            Text = "Hg",
+            FontFamily = new FontFamily(fontFamilyName),
+            FontSize = fontSize,
+        };
+        probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return probe.BaselineOffset;
+    }
+
+    private void OnEditingItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_editingItem is null)
+        {
+            return;
+        }
+
+        if (e.PropertyName is nameof(TextItem.Text)
+            or nameof(TextItem.FontFamily)
+            or nameof(TextItem.FontSize)
+            or nameof(TextItem.Fill)
+            or nameof(TextItem.Outline)
+            or nameof(TextItem.OutlineThickness)
+            or nameof(TextItem.CanonicalBounds)
+            or nameof(DrawingItem.Geometry))
+        {
+            ConfigureEditTextBoxForItem(_editingItem);
+            PositionEditTextBox(_editingItem);
+        }
+    }
+
+    private void OnEditingItemTransformChanged(object? sender, EventArgs e)
+    {
+        if (_editingItem is not null)
+        {
+            PositionEditTextBox(_editingItem);
+        }
+    }
+
+    private void OnEditTextBoxTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressEditTextSync || _editingItem is null)
+        {
+            return;
+        }
+
+        _editingItem.SetText(EditTextBox.Text);
+    }
+
+    private void OnEditTextBoxLostFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        // Keep the editor alive when focus moves into the tools panel or any of its popups,
+        // so the user can change font/size/fill/outline of the editing text without losing it.
+        if (e.NewFocus is DependencyObject focusTarget && IsWithinImageEditTools(focusTarget))
+        {
+            return;
+        }
+
+        ViewModel?.EndEditText(commit: true);
+    }
+
+    private static bool IsWithinImageEditTools(DependencyObject element)
+    {
+        DependencyObject? current = element;
+        while (current is not null)
+        {
+            if (current is ImageEditToolsView)
+            {
+                return true;
+            }
+
+            // Walk up the logical tree first (handles popup content), then fall back to visual tree.
+            var next = LogicalTreeHelper.GetParent(current);
+            if (next is null && current is Visual visual)
+            {
+                next = VisualTreeHelper.GetParent(visual);
+            }
+            current = next;
+        }
+        return false;
+    }
+
+    private void OnEditTextBoxPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            ViewModel?.EndEditText(commit: true);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
+        {
+            ViewModel?.EndEditText(commit: true);
+            e.Handled = true;
+        }
+    }
+
+    private static void OnSelectedTextStyleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not DrawingView view || view.ViewModel?.SelectedItem is not TextItem text)
+        {
+            return;
+        }
+
+        if (e.Property == TextFontFamilyProperty && e.NewValue is string family)
+        {
+            text.SetFontFamily(family);
+        }
+        else if (e.Property == TextFontSizeProperty && e.NewValue is double size)
+        {
+            text.SetFontSize(size);
+        }
+        else if (e.Property == TextFillBrushProperty)
+        {
+            text.SetFill(e.NewValue as Brush);
+        }
+        else if (e.Property == TextOutlineBrushProperty)
+        {
+            text.SetOutline(e.NewValue as Brush, view.TextOutlineThickness);
+        }
+        else if (e.Property == TextOutlineThicknessProperty && e.NewValue is double thickness)
+        {
+            text.SetOutline(view.TextOutlineBrush, thickness);
+        }
     }
 }

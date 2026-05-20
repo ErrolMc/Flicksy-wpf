@@ -15,6 +15,9 @@ public partial class DrawingViewModel : ObservableObject
     [ObservableProperty]
     private DrawingItem? selectedItem;
 
+    [ObservableProperty]
+    private TextItem? editingTextItem;
+
     public DrawingViewModel()
     {
         Items.CollectionChanged += OnItemsChanged;
@@ -69,10 +72,51 @@ public partial class DrawingViewModel : ObservableObject
         _currentShape = null;
     }
 
+    public TextItem BeginText(Point origin, string fontFamily, double fontSize, Brush? fill, Brush? outline, double outlineThickness)
+    {
+        var item = new TextItem(origin, fontFamily, fontSize, fill, outline, outlineThickness);
+        Items.Add(item);
+        SelectedItem = item;
+        return item;
+    }
+
+    public void BeginEditText(TextItem item)
+    {
+        if (EditingTextItem is { } current && !ReferenceEquals(current, item))
+        {
+            EndEditText(commit: true);
+        }
+
+        SelectedItem = item;
+        item.IsEditing = true;
+        EditingTextItem = item;
+    }
+
+    public void EndEditText(bool commit)
+    {
+        if (EditingTextItem is not { } item)
+        {
+            return;
+        }
+
+        item.IsEditing = false;
+        EditingTextItem = null;
+
+        if (commit && item.IsEmpty)
+        {
+            Items.Remove(item);
+        }
+    }
+
     public void Clear()
     {
         _currentPen = null;
         _currentShape = null;
+        if (EditingTextItem is { } editing)
+        {
+            editing.IsEditing = false;
+        }
+        EditingTextItem = null;
         SelectedItem = null;
         Items.Clear();
     }
