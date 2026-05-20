@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Flicksy.Editor.Source;
 
 namespace Flicksy.Editor.ViewModels;
@@ -13,6 +14,11 @@ public partial class DrawingViewModel : ObservableObject
     private ShapeItem? _currentShape;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedItem))]
+    [NotifyPropertyChangedFor(nameof(CanMoveSelectedItemUp))]
+    [NotifyPropertyChangedFor(nameof(CanMoveSelectedItemDown))]
+    [NotifyCanExecuteChangedFor(nameof(MoveSelectedItemUpCommand))]
+    [NotifyCanExecuteChangedFor(nameof(MoveSelectedItemDownCommand))]
     private DrawingItem? selectedItem;
 
     [ObservableProperty]
@@ -26,6 +32,46 @@ public partial class DrawingViewModel : ObservableObject
     public ObservableCollection<DrawingItem> Items { get; } = new();
 
     public bool HasItems => Items.Count > 0;
+
+    public bool HasSelectedItem => SelectedItem is not null;
+
+    public bool CanMoveSelectedItemUp => SelectedItem is { } item && Items.IndexOf(item) < Items.Count - 1;
+
+    public bool CanMoveSelectedItemDown => SelectedItem is { } item && Items.IndexOf(item) > 0;
+
+    [RelayCommand(CanExecute = nameof(CanMoveSelectedItemUp))]
+    private void MoveSelectedItemUp()
+    {
+        if (SelectedItem is not { } item)
+        {
+            return;
+        }
+
+        var index = Items.IndexOf(item);
+        if (index < 0 || index >= Items.Count - 1)
+        {
+            return;
+        }
+
+        Items.Move(index, index + 1);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMoveSelectedItemDown))]
+    private void MoveSelectedItemDown()
+    {
+        if (SelectedItem is not { } item)
+        {
+            return;
+        }
+
+        var index = Items.IndexOf(item);
+        if (index <= 0)
+        {
+            return;
+        }
+
+        Items.Move(index, index - 1);
+    }
 
     public void BeginPenStroke(Point point, Brush brush, double thickness)
     {
@@ -148,7 +194,15 @@ public partial class DrawingViewModel : ObservableObject
             if (!Items.Contains(SelectedItem))
             {
                 SelectedItem = null;
+                return;
             }
         }
+
+        // The selected item's index may have shifted (move/add/remove), so the layer
+        // commands' executability needs to be re-checked.
+        OnPropertyChanged(nameof(CanMoveSelectedItemUp));
+        OnPropertyChanged(nameof(CanMoveSelectedItemDown));
+        MoveSelectedItemUpCommand.NotifyCanExecuteChanged();
+        MoveSelectedItemDownCommand.NotifyCanExecuteChanged();
     }
 }

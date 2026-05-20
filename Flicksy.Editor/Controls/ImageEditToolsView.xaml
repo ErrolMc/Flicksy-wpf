@@ -4,6 +4,8 @@
              xmlns:vm="clr-namespace:Flicksy.Editor.ViewModels"
              xmlns:controls="clr-namespace:Flicksy.Editor.Controls">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
         <SolidColorBrush x:Key="ToolsPanelBackgroundBrush" Color="#1A1A1A" />
         <SolidColorBrush x:Key="ToolsPanelBorderBrush" Color="#33FFFFFF" />
         <SolidColorBrush x:Key="ToolButtonHoverBrush" Color="#26FFFFFF" />
@@ -51,7 +53,48 @@
     <Border Background="Transparent"
             BorderThickness="0"
             HorizontalAlignment="Stretch">
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+        <Grid HorizontalAlignment="Left">
+            <!--
+                Layer reorder buttons sit in their own panel positioned to the left of
+                the main toolbar via a negative margin so they overflow into empty space
+                without shifting the existing tools.
+            -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Left"
+                        Margin="-97,0,0,0"
+                        Visibility="{Binding DataContext.Drawing.HasSelectedItem, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
+                <Button x:Name="MoveLayerUpButton"
+                        Command="{Binding DataContext.Drawing.MoveSelectedItemUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        Style="{StaticResource ToolIconButtonStyle}"
+                        ToolTip="Move up a layer"
+                        Margin="0,0,4,0">
+                    <Grid Width="28" Height="28">
+                        <Image Source="{Binding UpArrow}" Width="28" Height="28" Stretch="Uniform" />
+                    </Grid>
+                </Button>
+                <Button x:Name="MoveLayerDownButton"
+                        Command="{Binding DataContext.Drawing.MoveSelectedItemDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        Style="{StaticResource ToolIconButtonStyle}"
+                        ToolTip="Move down a layer"
+                        Margin="0,0,4,0">
+                    <Grid Width="28" Height="28">
+                        <Image Source="{Binding UpArrow}"
+                               Width="28"
+                               Height="28"
+                               Stretch="Uniform"
+                               RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <ScaleTransform ScaleY="-1" />
+                            </Image.RenderTransform>
+                        </Image>
+                    </Grid>
+                </Button>
+                <Rectangle Width="1"
+                           Fill="{StaticResource ToolsPanelBorderBrush}"
+                           VerticalAlignment="Stretch"
+                           Margin="0,6,4,6" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
             <Button x:Name="SelectButton"
                     Command="{Binding SelectCommand}"
                     ToolTip="Select"
@@ -171,6 +214,7 @@
                    Opened="OnTextSettingsPopupOpened">
                 <controls:TextSettingsView DataContext="{Binding TextSettings}" />
             </Popup>
-        </StackPanel>
+            </StackPanel>
+        </Grid>
     </Border>
 </UserControl>
