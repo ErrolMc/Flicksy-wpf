@@ -107,7 +107,6 @@
 
                 <controls:ImageEditToolsView x:Name="ImageEditToolsPanel"
                                              Grid.Column="1"
-                                             Width="340"
                                              VerticalAlignment="Center"
                                              Margin="0,-3"
                                              DataContext="{Binding ImageEditTools}"

@@ -53,101 +53,111 @@
     <Border Background="Transparent"
             BorderThickness="0"
             HorizontalAlignment="Stretch">
-        <Grid HorizontalAlignment="Left">
-            <!--
-                Layer reorder buttons sit in their own panel positioned to the left of
-                the main toolbar via a negative margin so they overflow into empty space
-                without shifting the existing tools.
-            -->
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Left"
-                        Margin="-97,0,0,0"
-                        Visibility="{Binding DataContext.Drawing.HasSelectedItem, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
-                <Button x:Name="MoveLayerUpButton"
-                        Command="{Binding DataContext.Drawing.MoveSelectedItemUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                        Style="{StaticResource ToolIconButtonStyle}"
-                        ToolTip="Move up a layer"
+        <!--
+            3-column shared-size grid: the two side columns are forced to the same
+            (max) width by SharedSizeGroup, so the Eraser column ends up at the exact
+            geometric centre of the toolbar regardless of how many buttons sit on
+            either side. The layer-reorder buttons live inside col 0 so showing/hiding
+            them doesn't shift the eraser off-centre.
+        -->
+        <Grid HorizontalAlignment="Center" Grid.IsSharedSizeScope="True">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" SharedSizeGroup="ToolbarSide" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" SharedSizeGroup="ToolbarSide" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left half: layer reorder (collapsed when no selection) + Select + Pen -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal"
+                            Visibility="{Binding DataContext.Drawing.HasSelectedItem, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
+                    <Button x:Name="MoveLayerUpButton"
+                            Command="{Binding DataContext.Drawing.MoveSelectedItemUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Style="{StaticResource ToolIconButtonStyle}"
+                            ToolTip="Move up a layer"
+                            Margin="0,0,4,0">
+                        <Grid Width="28" Height="28">
+                            <Image Source="{Binding UpArrow}" Width="28" Height="28" Stretch="Uniform" />
+                        </Grid>
+                    </Button>
+                    <Button x:Name="MoveLayerDownButton"
+                            Command="{Binding DataContext.Drawing.MoveSelectedItemDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Style="{StaticResource ToolIconButtonStyle}"
+                            ToolTip="Move down a layer"
+                            Margin="0,0,4,0">
+                        <Grid Width="28" Height="28">
+                            <Image Source="{Binding UpArrow}"
+                                   Width="28"
+                                   Height="28"
+                                   Stretch="Uniform"
+                                   RenderTransformOrigin="0.5,0.5">
+                                <Image.RenderTransform>
+                                    <ScaleTransform ScaleY="-1" />
+                                </Image.RenderTransform>
+                            </Image>
+                        </Grid>
+                    </Button>
+                    <Rectangle Width="1"
+                               Fill="{StaticResource ToolsPanelBorderBrush}"
+                               VerticalAlignment="Stretch"
+                               Margin="0,6,4,6" />
+                </StackPanel>
+                <Button x:Name="SelectButton"
+                        Command="{Binding SelectCommand}"
+                        ToolTip="Select"
                         Margin="0,0,4,0">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Select}">
+                                    <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
                     <Grid Width="28" Height="28">
-                        <Image Source="{Binding UpArrow}" Width="28" Height="28" Stretch="Uniform" />
+                        <Image Source="{Binding Cursor}" Width="28" Height="28" Stretch="Uniform" />
                     </Grid>
                 </Button>
-                <Button x:Name="MoveLayerDownButton"
-                        Command="{Binding DataContext.Drawing.MoveSelectedItemDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                        Style="{StaticResource ToolIconButtonStyle}"
-                        ToolTip="Move down a layer"
+                <Button x:Name="PenButton"
+                        Command="{Binding PenCommand}"
+                        ToolTip="Pen"
                         Margin="0,0,4,0">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Pen}">
+                                    <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
                     <Grid Width="28" Height="28">
-                        <Image Source="{Binding UpArrow}"
-                               Width="28"
-                               Height="28"
-                               Stretch="Uniform"
-                               RenderTransformOrigin="0.5,0.5">
-                            <Image.RenderTransform>
-                                <ScaleTransform ScaleY="-1" />
-                            </Image.RenderTransform>
-                        </Image>
+                        <Image Source="{Binding PenBackground}" Width="28" Height="28" Stretch="Uniform" />
+                        <Rectangle Width="28" Height="28"
+                                   Fill="{Binding PenSettings.SelectedColor.Brush, FallbackValue=Black}">
+                            <Rectangle.OpacityMask>
+                                <ImageBrush ImageSource="{Binding PenForeground}" Stretch="Uniform" />
+                            </Rectangle.OpacityMask>
+                        </Rectangle>
                     </Grid>
                 </Button>
-                <Rectangle Width="1"
-                           Fill="{StaticResource ToolsPanelBorderBrush}"
-                           VerticalAlignment="Stretch"
-                           Margin="0,6,4,6" />
+                <Popup PlacementTarget="{Binding ElementName=PenButton}"
+                       Placement="Bottom"
+                       VerticalOffset="6"
+                       HorizontalOffset="-138"
+                       StaysOpen="False"
+                       AllowsTransparency="True"
+                       IsOpen="{Binding IsPenSettingsOpen, Mode=TwoWay}">
+                    <controls:PenSettingsView DataContext="{Binding PenSettings}" />
+                </Popup>
             </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-            <Button x:Name="SelectButton"
-                    Command="{Binding SelectCommand}"
-                    ToolTip="Select"
-                    Margin="0,0,4,0">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Select}">
-                                <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <Grid Width="28" Height="28">
-                    <Image Source="{Binding Cursor}" Width="28" Height="28" Stretch="Uniform" />
-                </Grid>
-            </Button>
-            <Button x:Name="PenButton"
-                    Command="{Binding PenCommand}"
-                    ToolTip="Pen"
-                    Margin="0,0,4,0">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Pen}">
-                                <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <Grid Width="28" Height="28">
-                    <Image Source="{Binding PenBackground}" Width="28" Height="28" Stretch="Uniform" />
-                    <Rectangle Width="28" Height="28"
-                               Fill="{Binding PenSettings.SelectedColor.Brush, FallbackValue=Black}">
-                        <Rectangle.OpacityMask>
-                            <ImageBrush ImageSource="{Binding PenForeground}" Stretch="Uniform" />
-                        </Rectangle.OpacityMask>
-                    </Rectangle>
-                </Grid>
-            </Button>
-            <Popup PlacementTarget="{Binding ElementName=PenButton}"
-                   Placement="Bottom"
-                   VerticalOffset="6"
-                   HorizontalOffset="-138"
-                   StaysOpen="False"
-                   AllowsTransparency="True"
-                   IsOpen="{Binding IsPenSettingsOpen, Mode=TwoWay}">
-                <controls:PenSettingsView DataContext="{Binding PenSettings}" />
-            </Popup>
-            <Button x:Name="EraserButton"
+
+            <!-- Centre: Eraser (the anchor that ends up at screen centre). -->
+            <Button Grid.Column="1"
+                    x:Name="EraserButton"
                     Command="{Binding EraseCommand}"
-                    ToolTip="Eraser"
-                    Margin="0,0,4,0">
+                    ToolTip="Eraser">
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
                         <Style.Triggers>
@@ -161,89 +171,92 @@
                     <Image Source="{Binding Eraser}" Width="28" Height="28" Stretch="Uniform" />
                 </Grid>
             </Button>
-            <Button x:Name="ShapesButton"
-                    Command="{Binding ShapesToolCommand}"
-                    ToolTip="Shapes"
-                    Margin="0,0,4,0">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Shapes}">
-                                <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <Grid Width="28" Height="28">
-                    <Image Source="{Binding Shapes}" Width="28" Height="28" Stretch="Uniform" />
-                </Grid>
-            </Button>
-            <Popup x:Name="ShapeSettingsPopup"
-                   PlacementTarget="{Binding ElementName=ShapesButton}"
-                   Placement="Bottom"
-                   VerticalOffset="6"
-                   StaysOpen="False"
-                   AllowsTransparency="True"
-                   IsOpen="{Binding IsShapeSettingsOpen, Mode=TwoWay}"
-                   Opened="OnShapeSettingsPopupOpened">
-                <controls:ShapeSettingsView DataContext="{Binding ShapeSettings}" />
-            </Popup>
-            <Button x:Name="TextButton"
-                    Command="{Binding TextToolCommand}"
-                    ToolTip="Text">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Text}">
-                                <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <Grid Width="28" Height="28">
-                    <Image Source="{Binding Text}" Width="28" Height="28" Stretch="Uniform" />
-                </Grid>
-            </Button>
-            <Popup x:Name="TextSettingsPopup"
-                   PlacementTarget="{Binding ElementName=TextButton}"
-                   Placement="Bottom"
-                   VerticalOffset="6"
-                   StaysOpen="False"
-                   AllowsTransparency="True"
-                   IsOpen="{Binding IsTextSettingsOpen, Mode=TwoWay}"
-                   Opened="OnTextSettingsPopupOpened"
-                   Closed="OnTextSettingsPopupClosed">
-                <controls:TextSettingsView DataContext="{Binding TextSettings}" />
-            </Popup>
-            <Rectangle Width="1"
-                       Fill="{StaticResource ToolsPanelBorderBrush}"
-                       VerticalAlignment="Stretch"
-                       Margin="4,6,4,6" />
-            <Button x:Name="UndoButton"
-                    Command="{Binding DataContext.Drawing.History.UndoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                    Style="{StaticResource ToolIconButtonStyle}"
-                    ToolTip="Undo (Ctrl+Z)"
-                    Margin="0,0,4,0">
-                <Grid Width="28" Height="28">
-                    <Image Source="{Binding Undo}" Width="28" Height="28" Stretch="Uniform" />
-                </Grid>
-            </Button>
-            <Button x:Name="RedoButton"
-                    Command="{Binding DataContext.Drawing.History.RedoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                    Style="{StaticResource ToolIconButtonStyle}"
-                    ToolTip="Redo (Ctrl+Y)">
-                <Grid Width="28" Height="28">
-                    <Image Source="{Binding Undo}"
-                           Width="28"
-                           Height="28"
-                           Stretch="Uniform"
-                           RenderTransformOrigin="0.5,0.5">
-                        <Image.RenderTransform>
-                            <ScaleTransform ScaleX="-1" />
-                        </Image.RenderTransform>
-                    </Image>
-                </Grid>
-            </Button>
+
+            <!-- Right half: Shapes + Text + separator + Undo + Redo -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button x:Name="ShapesButton"
+                        Command="{Binding ShapesToolCommand}"
+                        ToolTip="Shapes"
+                        Margin="4,0,4,0">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Shapes}">
+                                    <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                    <Grid Width="28" Height="28">
+                        <Image Source="{Binding Shapes}" Width="28" Height="28" Stretch="Uniform" />
+                    </Grid>
+                </Button>
+                <Popup x:Name="ShapeSettingsPopup"
+                       PlacementTarget="{Binding ElementName=ShapesButton}"
+                       Placement="Bottom"
+                       VerticalOffset="6"
+                       StaysOpen="False"
+                       AllowsTransparency="True"
+                       IsOpen="{Binding IsShapeSettingsOpen, Mode=TwoWay}"
+                       Opened="OnShapeSettingsPopupOpened">
+                    <controls:ShapeSettingsView DataContext="{Binding ShapeSettings}" />
+                </Popup>
+                <Button x:Name="TextButton"
+                        Command="{Binding TextToolCommand}"
+                        ToolTip="Text">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Text}">
+                                    <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                    <Grid Width="28" Height="28">
+                        <Image Source="{Binding Text}" Width="28" Height="28" Stretch="Uniform" />
+                    </Grid>
+                </Button>
+                <Popup x:Name="TextSettingsPopup"
+                       PlacementTarget="{Binding ElementName=TextButton}"
+                       Placement="Bottom"
+                       VerticalOffset="6"
+                       StaysOpen="False"
+                       AllowsTransparency="True"
+                       IsOpen="{Binding IsTextSettingsOpen, Mode=TwoWay}"
+                       Opened="OnTextSettingsPopupOpened"
+                       Closed="OnTextSettingsPopupClosed">
+                    <controls:TextSettingsView DataContext="{Binding TextSettings}" />
+                </Popup>
+                <Rectangle Width="1"
+                           Fill="{StaticResource ToolsPanelBorderBrush}"
+                           VerticalAlignment="Stretch"
+                           Margin="4,6,4,6" />
+                <Button x:Name="UndoButton"
+                        Command="{Binding DataContext.Drawing.History.UndoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        Style="{StaticResource ToolIconButtonStyle}"
+                        ToolTip="Undo (Ctrl+Z)"
+                        Margin="0,0,4,0">
+                    <Grid Width="28" Height="28">
+                        <Image Source="{Binding Undo}" Width="28" Height="28" Stretch="Uniform" />
+                    </Grid>
+                </Button>
+                <Button x:Name="RedoButton"
+                        Command="{Binding DataContext.Drawing.History.RedoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        Style="{StaticResource ToolIconButtonStyle}"
+                        ToolTip="Redo (Ctrl+Y)">
+                    <Grid Width="28" Height="28">
+                        <Image Source="{Binding Undo}"
+                               Width="28"
+                               Height="28"
+                               Stretch="Uniform"
+                               RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <ScaleTransform ScaleX="-1" />
+                            </Image.RenderTransform>
+                        </Image>
+                    </Grid>
+                </Button>
             </StackPanel>
         </Grid>
     </Border>
