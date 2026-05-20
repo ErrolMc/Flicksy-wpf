@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Input;
+using Flicksy.Editor.Source;
 
 namespace Flicksy.Editor.Helpers;
 
@@ -57,5 +59,38 @@ internal static class DrawingMath
         if (deg < 67.5) return Cursors.SizeNWSE;
         if (deg < 112.5) return Cursors.SizeNS;
         return Cursors.SizeNESW;
+    }
+
+    /// <summary>
+    /// Returns true if the world-space point lands on the given item, taking the item's
+    /// transform into account.
+    /// </summary>
+    public static bool IntersectsItem(DrawingItem item, Point worldPoint)
+    {
+        var inverse = item.Transform.Matrix;
+        if (!inverse.HasInverse)
+        {
+            return false;
+        }
+        inverse.Invert();
+        var localPoint = inverse.Transform(worldPoint);
+        return item.HitTest(localPoint);
+    }
+
+    /// <summary>
+    /// Returns the topmost item (highest z-order in the list) that intersects the world-space
+    /// point, or null if none do.
+    /// </summary>
+    public static DrawingItem? HitTestTopmost(IList<DrawingItem> items, Point worldPoint)
+    {
+        for (var i = items.Count - 1; i >= 0; i--)
+        {
+            var item = items[i];
+            if (IntersectsItem(item, worldPoint))
+            {
+                return item;
+            }
+        }
+        return null;
     }
 }
