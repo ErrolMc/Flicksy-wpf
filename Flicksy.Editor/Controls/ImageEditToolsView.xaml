@@ -228,6 +228,23 @@
                        Closed="OnTextSettingsPopupClosed">
                     <controls:TextSettingsView DataContext="{Binding TextSettings}" />
                 </Popup>
+                <Button x:Name="CropButton"
+                        Command="{Binding CropToolCommand}"
+                        ToolTip="Crop"
+                        Margin="4,0,0,0">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource ToolIconButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTool}" Value="{x:Static vm:ImageEditTool.Crop}">
+                                    <Setter Property="BorderBrush" Value="{StaticResource ToolButtonSelectedBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                    <Grid Width="28" Height="28">
+                        <Image Source="{Binding Crop}" Width="28" Height="28" Stretch="Uniform" />
+                    </Grid>
+                </Button>
                 <Rectangle Width="1"
                            Fill="{StaticResource ToolsPanelBorderBrush}"
                            VerticalAlignment="Stretch"

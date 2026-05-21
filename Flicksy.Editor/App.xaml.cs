@@ -41,6 +41,7 @@ public partial class App : Application
         builder.Services.AddTransient<IVideoPlayer, FFmpegVideoPlayer>();
         builder.Services.AddTransient<ImageEditToolsViewModel>();
         builder.Services.AddTransient<DrawingViewModel>();
+        builder.Services.AddTransient<CropOverlayViewModel>();
         builder.Services.AddTransient<PostSnipViewModel>();
         builder.Services.AddTransient<PostSnipWindow>();
 

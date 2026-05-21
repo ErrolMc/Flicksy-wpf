@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using Flicksy.Editor.ViewModels;
 using Microsoft.Win32;
 
@@ -41,6 +42,7 @@ public partial class PostSnipWindow : Window
         viewModel.SaveDialogRequested += OnSaveDialogRequested;
         viewModel.CloseRequested += OnCloseRequested;
         viewModel.ErrorOccurred += OnErrorOccurred;
+        viewModel.CropOverlay.ViewBoundsChanged += OnCropViewBoundsChanged;
 
         PreviewKeyDown += OnWindowPreviewKeyDown;
     }
@@ -119,12 +121,32 @@ public partial class PostSnipWindow : Window
         ViewModel.SaveDialogRequested -= OnSaveDialogRequested;
         ViewModel.CloseRequested -= OnCloseRequested;
         ViewModel.ErrorOccurred -= OnErrorOccurred;
+        ViewModel.CropOverlay.ViewBoundsChanged -= OnCropViewBoundsChanged;
 
         ViewModel.Player.Close();
         ViewModel.Player.Dispose();
         ViewModel.DeleteMediaFile();
 
         base.OnClosed(e);
+    }
+
+    private void OnCropViewBoundsChanged(object? sender, EventArgs e)
+    {
+        UpdateImageClip();
+        _autoFitPending = true;
+        TryAutoFit();
+    }
+
+    private void UpdateImageClip()
+    {
+        var crop = ViewModel.CropOverlay;
+        if (!crop.HasImage || crop.IsActive || !crop.IsCropped)
+        {
+            ImageContent.Clip = null;
+            return;
+        }
+
+        ImageContent.Clip = new RectangleGeometry(crop.CommittedCrop);
     }
 
     private void OnSaveDialogRequested(object? sender, SaveDialogRequest request)
@@ -181,13 +203,38 @@ public partial class PostSnipWindow : Window
         var portH = ImageViewport.ActualHeight;
         if (imgW <= 0 || imgH <= 0 || portW <= 0 || portH <= 0) return;
 
-        var scale = Math.Min(portW / imgW, portH / imgH);
+        var bounds = GetVisibleBounds(imgW, imgH);
+
+        var scale = Math.Min(portW / bounds.Width, portH / bounds.Height);
 
         ImageScaleTransform.ScaleX = scale;
         ImageScaleTransform.ScaleY = scale;
-        ImageTranslateTransform.X = (portW - imgW * scale) / 2;
-        ImageTranslateTransform.Y = (portH - imgH * scale) / 2;
+        // Centre the visible region (cropped or full) in the viewport.
+        var centerX = bounds.X + bounds.Width / 2.0;
+        var centerY = bounds.Y + bounds.Height / 2.0;
+        ImageTranslateTransform.X = portW / 2.0 - centerX * scale;
+        ImageTranslateTransform.Y = portH / 2.0 - centerY * scale;
         _autoFitPending = false;
+
+        UpdateImageClip();
+    }
+
+    private Rect GetVisibleBounds(double imgW, double imgH)
+    {
+        var crop = ViewModel?.CropOverlay;
+        var fallback = new Rect(0, 0, imgW, imgH);
+        if (crop is null || !crop.HasImage)
+        {
+            return fallback;
+        }
+
+        var bounds = crop.CurrentViewBounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return fallback;
+        }
+
+        return bounds;
     }
 
     private void OnImageViewportMouseWheel(object sender, MouseWheelEventArgs e)
@@ -232,12 +279,31 @@ public partial class PostSnipWindow : Window
     {
         var portW = ImageViewport.ActualWidth;
         var portH = ImageViewport.ActualHeight;
-        var imgW = EditedImage.ActualWidth * ImageScaleTransform.ScaleX;
-        var imgH = EditedImage.ActualHeight * ImageScaleTransform.ScaleY;
-        if (portW <= 0 || portH <= 0 || imgW <= 0 || imgH <= 0) return;
+        var rawImgW = EditedImage.ActualWidth;
+        var rawImgH = EditedImage.ActualHeight;
+        if (portW <= 0 || portH <= 0 || rawImgW <= 0 || rawImgH <= 0) return;
 
-        ImageTranslateTransform.X = Math.Clamp(ImageTranslateTransform.X, ViewportEdgeMargin - imgW, portW - ViewportEdgeMargin);
-        ImageTranslateTransform.Y = Math.Clamp(ImageTranslateTransform.Y, ViewportEdgeMargin - imgH, portH - ViewportEdgeMargin);
+        var scale = ImageScaleTransform.ScaleX;
+        var bounds = GetVisibleBounds(rawImgW, rawImgH);
+
+        // Clamp so that at least ViewportEdgeMargin pixels of the visible region stay on-screen.
+        var minX = ViewportEdgeMargin - bounds.Right * scale;
+        var maxX = portW - ViewportEdgeMargin - bounds.X * scale;
+        if (minX > maxX)
+        {
+            var mid = (minX + maxX) / 2.0;
+            minX = maxX = mid;
+        }
+        var minY = ViewportEdgeMargin - bounds.Bottom * scale;
+        var maxY = portH - ViewportEdgeMargin - bounds.Y * scale;
+        if (minY > maxY)
+        {
+            var mid = (minY + maxY) / 2.0;
+            minY = maxY = mid;
+        }
+
+        ImageTranslateTransform.X = Math.Clamp(ImageTranslateTransform.X, minX, maxX);
+        ImageTranslateTransform.Y = Math.Clamp(ImageTranslateTransform.Y, minY, maxY);
     }
 
     private void OnImageViewportPreviewMouseDown(object sender, MouseButtonEventArgs e)

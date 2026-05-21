@@ -90,6 +90,15 @@
                 BorderBrush="{StaticResource ChromeBorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="12">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CropOverlay.IsActive}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -127,6 +136,27 @@
                             Command="{Binding CancelCommand}" />
                 </StackPanel>
             </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Top"
+                Background="{StaticResource ChromeBackgroundBrush}"
+                BorderBrush="{StaticResource ChromeBorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="12"
+                Visibility="{Binding CropOverlay.IsActive, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <Button x:Name="ApplyCropButton"
+                        Style="{StaticResource PrimaryToolbarButtonStyle}"
+                        Margin="0,0,8,0"
+                        Content="Apply"
+                        Command="{Binding ApplyCropCommand}" />
+                <Button x:Name="CancelCropButton"
+                        Style="{StaticResource SecondaryToolbarButtonStyle}"
+                        Content="Cancel"
+                        Command="{Binding CancelCropCommand}" />
+            </StackPanel>
         </Border>
 
         <Grid Background="#111111">
@@ -184,6 +214,9 @@
                 <controls:SelectionOverlayView DataContext="{Binding SelectionOverlay}"
                                                ContentToViewport="{Binding ElementName=ImageContent, Path=RenderTransform}"
                                                Panel.ZIndex="5" />
+                <controls:CropOverlayView DataContext="{Binding CropOverlay}"
+                                          ContentToViewport="{Binding ElementName=ImageContent, Path=RenderTransform}"
+                                          Panel.ZIndex="6" />
             </Grid>
 
             <controls:VideoSurface Player="{Binding Player}"

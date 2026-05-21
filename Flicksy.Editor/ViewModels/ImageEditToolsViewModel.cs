@@ -14,6 +14,7 @@ public enum ImageEditTool
     Erase,
     Shapes,
     Text,
+    Crop,
 }
 
 public partial class ImageEditToolsViewModel : ObservableObject
@@ -26,6 +27,7 @@ public partial class ImageEditToolsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsSelectActive))]
     [NotifyPropertyChangedFor(nameof(IsShapesActive))]
     [NotifyPropertyChangedFor(nameof(IsTextActive))]
+    [NotifyPropertyChangedFor(nameof(IsCropActive))]
     [NotifyPropertyChangedFor(nameof(IsDrawingToolActive))]
     [NotifyPropertyChangedFor(nameof(IsImageToolActive))]
     private ImageEditTool selectedTool = ImageEditTool.Select;
@@ -50,6 +52,7 @@ public partial class ImageEditToolsViewModel : ObservableObject
         Eraser = Resources.eraser.ToImageSource();
         Shapes = Resources.shapes.ToImageSource();
         Text = Resources.text.ToImageSource();
+        Crop = Resources.crop.ToImageSource();
         UpArrow = Resources.up_arrow.ToImageSource();
         Undo = Resources.undo.ToImageSource();
     }
@@ -65,6 +68,8 @@ public partial class ImageEditToolsViewModel : ObservableObject
     public ImageSource Shapes { get; }
 
     public ImageSource Text { get; }
+
+    public ImageSource Crop { get; }
 
     public ImageSource UpArrow { get; }
 
@@ -85,6 +90,8 @@ public partial class ImageEditToolsViewModel : ObservableObject
     public bool IsShapesActive => SelectedTool == ImageEditTool.Shapes;
 
     public bool IsTextActive => SelectedTool == ImageEditTool.Text;
+
+    public bool IsCropActive => SelectedTool == ImageEditTool.Crop;
 
     public bool IsDrawingToolActive => SelectedTool is ImageEditTool.Pen or ImageEditTool.Erase or ImageEditTool.Shapes;
 
@@ -151,6 +158,12 @@ public partial class ImageEditToolsViewModel : ObservableObject
         }
 
         SelectedTool = ImageEditTool.Shapes;
+    }
+
+    [RelayCommand]
+    private void CropTool()
+    {
+        SelectedTool = ImageEditTool.Crop;
     }
 
     partial void OnSelectedToolChanged(ImageEditTool value)

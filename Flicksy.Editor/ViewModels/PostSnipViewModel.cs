@@ -27,11 +27,13 @@ public partial class PostSnipViewModel : ObservableObject
     [ObservableProperty]
     private ImageSource? imageSource;
 
-    public PostSnipViewModel(IVideoPlayer player, ImageEditToolsViewModel imageEditTools, DrawingViewModel drawing)
+    public PostSnipViewModel(IVideoPlayer player, ImageEditToolsViewModel imageEditTools, DrawingViewModel drawing, CropOverlayViewModel cropOverlay)
     {
         Player = player;
         ImageEditTools = imageEditTools;
         Drawing = drawing;
+        CropOverlay = cropOverlay;
+        CropOverlay.AttachHistory(drawing.History);
         SelectionOverlay = new SelectionOverlayViewModel
         {
             SelectedItem = drawing.SelectedItem,
@@ -77,6 +79,16 @@ public partial class PostSnipViewModel : ObservableObject
                 // Hide selection corner/rotate handles whenever the Text tool is active
                 // (with or without an in-progress edit) to keep focus on typing.
                 SelectionOverlay.ShowHandles = !imageEditTools.IsTextActive;
+
+                // Crop tool transitions: begin/commit an edit session on the crop VM.
+                if (imageEditTools.IsCropActive && !cropOverlay.IsActive)
+                {
+                    cropOverlay.BeginEdit();
+                }
+                else if (!imageEditTools.IsCropActive && cropOverlay.IsActive)
+                {
+                    cropOverlay.CommitEdit();
+                }
             }
 
             if (e.PropertyName == nameof(ImageEditToolsViewModel.IsSelectActive))
@@ -103,6 +115,8 @@ public partial class PostSnipViewModel : ObservableObject
     public ImageEditToolsViewModel ImageEditTools { get; }
 
     public DrawingViewModel Drawing { get; }
+
+    public CropOverlayViewModel CropOverlay { get; }
 
     public SelectionOverlayViewModel SelectionOverlay { get; }
 
@@ -143,6 +157,7 @@ public partial class PostSnipViewModel : ObservableObject
         IsVideo = false;
         MediaPath = imagePath;
         Drawing.Clear();
+        CropOverlay.Reset(bitmap.Width, bitmap.Height);
     }
 
     public async Task LoadVideoAsync(string videoPath)
@@ -161,6 +176,7 @@ public partial class PostSnipViewModel : ObservableObject
         IsVideo = true;
         MediaPath = videoPath;
         Drawing.Clear();
+        CropOverlay.Reset(0, 0);
 
         await Player.OpenAsync(videoPath).ConfigureAwait(true);
     }
@@ -197,7 +213,7 @@ public partial class PostSnipViewModel : ObservableObject
 
         try
         {
-            if (IsImage && Drawing.HasItems && ImageSource is BitmapSource bitmapSource)
+            if (IsImage && (Drawing.HasItems || HasEffectiveCrop()) && ImageSource is BitmapSource bitmapSource)
             {
                 SaveImageWithDrawing(bitmapSource, request.SelectedPath);
             }
@@ -214,23 +230,41 @@ public partial class PostSnipViewModel : ObservableObject
         }
     }
 
+    private bool HasEffectiveCrop()
+    {
+        if (!CropOverlay.HasImage) return false;
+        var crop = CropOverlay.EffectiveCrop;
+        return crop.X > 0
+            || crop.Y > 0
+            || crop.Width < CropOverlay.ImageWidth
+            || crop.Height < CropOverlay.ImageHeight;
+    }
+
     private void SaveImageWithDrawing(BitmapSource source, string destinationPath)
     {
         var width = source.Width;
         var height = source.Height;
+        var crop = HasEffectiveCrop()
+            ? CropOverlay.EffectiveCrop
+            : new Rect(0, 0, width, height);
 
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
+            // Offset so the crop origin maps to (0,0) in the rendered output.
+            dc.PushTransform(new TranslateTransform(-crop.X, -crop.Y));
             dc.DrawImage(source, new Rect(0, 0, width, height));
 
             foreach (var item in Drawing.Items)
             {
                 item.Render(dc);
             }
+            dc.Pop();
         }
 
-        var rtb = new RenderTargetBitmap(source.PixelWidth, source.PixelHeight, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
+        var pixelW = (int)Math.Max(1, Math.Round(crop.Width * source.DpiX / 96.0));
+        var pixelH = (int)Math.Max(1, Math.Round(crop.Height * source.DpiY / 96.0));
+        var rtb = new RenderTargetBitmap(pixelW, pixelH, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
         rtb.Render(visual);
 
         var encoder = new PngBitmapEncoder();
@@ -243,6 +277,26 @@ public partial class PostSnipViewModel : ObservableObject
     private void Cancel()
     {
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void ApplyCrop()
+    {
+        if (CropOverlay.IsActive)
+        {
+            CropOverlay.CommitEdit();
+        }
+        ImageEditTools.SelectedTool = ImageEditTool.Select;
+    }
+
+    [RelayCommand]
+    private void CancelCrop()
+    {
+        if (CropOverlay.IsActive)
+        {
+            CropOverlay.CancelEdit();
+        }
+        ImageEditTools.SelectedTool = ImageEditTool.Select;
     }
 
     [RelayCommand]
