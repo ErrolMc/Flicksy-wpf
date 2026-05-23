@@ -1,7 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using Flicksy.PostSnip.Source;
+using Flicksy.Drawing.Source;
+using Flicksy.Drawing.ViewModels;
 using Flicksy.PostSnip.ViewModels;
 
 namespace Flicksy.PostSnip.Controls;

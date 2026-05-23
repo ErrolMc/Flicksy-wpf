@@ -1,4 +1,5 @@
 using System.Windows;
+using Flicksy.Drawing.Undo;
 using Flicksy.PostSnip.ViewModels;
 
 namespace Flicksy.PostSnip.Undo.Commands;

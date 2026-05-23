@@ -1,9 +1,7 @@
-using System;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Flicksy.PostSnip.Helpers;
-using Flicksy.PostSnip.Properties;
+using Flicksy.Drawing.Helpers;
 
 namespace Flicksy.PostSnip.ViewModels;
 
@@ -46,15 +44,15 @@ public partial class ImageEditToolsViewModel : ObservableObject
 
     public ImageEditToolsViewModel()
     {
-        Cursor = Resources.cursor.ToImageSource();
-        PenBackground = Resources.pen_background.ToImageSource();
-        PenForeground = Resources.pen_foreground.ToImageSource();
-        Eraser = Resources.eraser.ToImageSource();
-        Shapes = Resources.shapes.ToImageSource();
-        Text = Resources.text.ToImageSource();
-        Crop = Resources.crop.ToImageSource();
-        UpArrow = Resources.up_arrow.ToImageSource();
-        Undo = Resources.undo.ToImageSource();
+        Cursor = Images.cursor.ToImageSource();
+        PenBackground = Images.pen_background.ToImageSource();
+        PenForeground = Images.pen_foreground.ToImageSource();
+        Eraser = Images.eraser.ToImageSource();
+        Shapes = Images.shapes.ToImageSource();
+        Text = Images.text.ToImageSource();
+        Crop = Images.crop.ToImageSource();
+        UpArrow = Images.up_arrow.ToImageSource();
+        Undo = Images.undo.ToImageSource();
     }
 
     public ImageSource Cursor { get; }

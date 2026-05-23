@@ -4,9 +4,8 @@ using System.Collections.ObjectModel;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Flicksy.PostSnip.Helpers;
-using Flicksy.PostSnip.Properties;
-using Flicksy.PostSnip.Source;
+using Flicksy.Drawing.Helpers;
+using Flicksy.Drawing.Source;
 
 namespace Flicksy.PostSnip.ViewModels;
 
@@ -37,13 +36,13 @@ public partial class TextSettingsViewModel : ObservableObject
 
     public ObservableCollection<string> Fonts { get; }
 
-    public ImageSource CircleOutside { get; } = Resources.circle.ToImageSource();
+    public ImageSource CircleOutside { get; } = Images.circle.ToImageSource();
 
-    public ImageSource CircleInside { get; } = Resources.circle_inside.ToImageSource();
+    public ImageSource CircleInside { get; } = Images.circle_inside.ToImageSource();
 
-    public ImageSource DonutOutside { get; } = Resources.donut_outside.ToImageSource();
+    public ImageSource DonutOutside { get; } = Images.donut_outside.ToImageSource();
 
-    public ImageSource DonutInside { get; } = Resources.donut_inside.ToImageSource();
+    public ImageSource DonutInside { get; } = Images.donut_inside.ToImageSource();
 
     public TextSettingsViewModel()
     {

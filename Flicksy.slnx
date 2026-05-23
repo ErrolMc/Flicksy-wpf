@@ -1,5 +1,7 @@
 <Solution>
   <Project Path="Flicksy.Agent/Flicksy.Agent.csproj" Id="2f061795-a8ae-4ad0-8553-218ab299b0a3" />
+  <Project Path="Flicksy.Drawing/Flicksy.Drawing.csproj" Id="0dcb9115-c553-4111-9862-4d114a049a6a" />
   <Project Path="Flicksy.PostSnip/Flicksy.PostSnip.csproj" Id="af33e0a1-2a2f-4c33-9f7b-b420d8ed5b71" />
+  <Project Path="Flicksy.Icons/Flicksy.Icons.csproj" Id="1734d5a9-dca4-4820-9006-6223836f5a74" />
   <Project Path="Flicksy.Snipper/Flicksy.Snipper.csproj" Id="5f05be34-7c9a-4f4c-9e2f-96fcd4b24b45" />
 </Solution>

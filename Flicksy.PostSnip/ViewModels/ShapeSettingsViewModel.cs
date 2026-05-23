@@ -3,18 +3,10 @@ using System.Collections.ObjectModel;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Flicksy.PostSnip.Helpers;
-using Flicksy.PostSnip.Properties;
+using Flicksy.Drawing.Helpers;
+using Flicksy.Drawing.Source;
 
 namespace Flicksy.PostSnip.ViewModels;
-
-public enum ShapeKind
-{
-    Square,
-    Circle,
-    Line,
-    Arrow,
-}
 
 public partial class ShapeOption : ObservableObject
 {
@@ -58,13 +50,13 @@ public partial class ShapeSettingsViewModel : ObservableObject
 
     public ObservableCollection<ShapeOption> Shapes { get; }
 
-    public ImageSource CircleOutside { get; } = Resources.circle.ToImageSource();
+    public ImageSource CircleOutside { get; } = Images.circle.ToImageSource();
 
-    public ImageSource CircleInside { get; } = Resources.circle_inside.ToImageSource();
+    public ImageSource CircleInside { get; } = Images.circle_inside.ToImageSource();
 
-    public ImageSource DonutOutside { get; } = Resources.donut_outside.ToImageSource();
+    public ImageSource DonutOutside { get; } = Images.donut_outside.ToImageSource();
 
-    public ImageSource DonutInside { get; } = Resources.donut_inside.ToImageSource();
+    public ImageSource DonutInside { get; } = Images.donut_inside.ToImageSource();
 
     public ShapeSettingsViewModel()
     {
@@ -124,9 +116,9 @@ public partial class ShapeSettingsViewModel : ObservableObject
 
     private static IEnumerable<ShapeOption> CreateShapes()
     {
-        yield return new ShapeOption(ShapeKind.Square, "Square", Resources.square.ToImageSource());
-        yield return new ShapeOption(ShapeKind.Circle, "Circle", Resources.circle.ToImageSource());
-        yield return new ShapeOption(ShapeKind.Line, "Line", Resources.line.ToImageSource());
-        yield return new ShapeOption(ShapeKind.Arrow, "Arrow", Resources.arrow.ToImageSource());
+        yield return new ShapeOption(ShapeKind.Square, "Square", Images.square.ToImageSource());
+        yield return new ShapeOption(ShapeKind.Circle, "Circle", Images.circle.ToImageSource());
+        yield return new ShapeOption(ShapeKind.Line, "Line", Images.line.ToImageSource());
+        yield return new ShapeOption(ShapeKind.Arrow, "Arrow", Images.arrow.ToImageSource());
     }
 }

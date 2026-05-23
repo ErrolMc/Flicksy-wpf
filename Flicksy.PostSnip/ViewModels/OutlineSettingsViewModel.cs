@@ -5,8 +5,7 @@ using System.Linq;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Flicksy.PostSnip.Helpers;
-using Flicksy.PostSnip.Properties;
+using Flicksy.Drawing.Helpers;
 
 namespace Flicksy.PostSnip.ViewModels;
 
@@ -67,7 +66,7 @@ public partial class OutlineSettingsViewModel : ObservableObject
 
     public ObservableCollection<OutlineColorOption> Colors { get; }
 
-    public ImageSource CrossCircle { get; } = Resources.cross_circle.ToImageSource();
+    public ImageSource CrossCircle { get; } = Images.cross_circle.ToImageSource();
 
     public OutlineSettingsViewModel()
     {

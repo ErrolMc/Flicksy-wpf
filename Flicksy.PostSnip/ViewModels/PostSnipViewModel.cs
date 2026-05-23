@@ -8,7 +8,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Flicksy.PostSnip.Media;
+using Flicksy.Drawing.Media;
+using Flicksy.Drawing.Source;
+using Flicksy.Drawing.ViewModels;
 
 namespace Flicksy.PostSnip.ViewModels;
 
@@ -94,7 +96,7 @@ public partial class PostSnipViewModel : ObservableObject
             if (e.PropertyName == nameof(ImageEditToolsViewModel.IsSelectActive))
             {
                 var keepTextSelection = imageEditTools.IsTextActive
-                    && drawing.SelectedItem is Source.TextItem;
+                    && drawing.SelectedItem is TextItem;
 
                 SelectionOverlay.IsActive = imageEditTools.IsSelectActive
                     || drawing.EditingTextItem is not null

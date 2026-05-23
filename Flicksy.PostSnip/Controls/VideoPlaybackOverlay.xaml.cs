@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Flicksy.PostSnip.Media;
+using Flicksy.Drawing.Media;
 
 namespace Flicksy.PostSnip.Controls;
 
