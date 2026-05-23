@@ -1,0 +1,80 @@
+<UserControl x:Class="Flicksy.PostSnip.Controls.DrawingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Flicksy.PostSnip.ViewModels"
+             xmlns:src="clr-namespace:Flicksy.PostSnip.Source"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DrawingViewModel, IsDesignTimeCreatable=False}"
+             Background="Transparent"
+             ClipToBounds="True"
+             MouseLeftButtonDown="OnMouseDown"
+             MouseMove="OnMouseMove"
+             MouseLeftButtonUp="OnMouseUp">
+    <Grid>
+        <ItemsControl IsHitTestVisible="False"
+                      ItemsSource="{Binding Items}">
+            <ItemsControl.Resources>
+                <DataTemplate DataType="{x:Type src:PenStrokeItem}">
+                    <Path Data="{Binding Geometry}"
+                          Stroke="{Binding Brush}"
+                          StrokeThickness="{Binding Thickness}"
+                          StrokeLineJoin="Round"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          SnapsToDevicePixels="False"
+                          UseLayoutRounding="False"
+                          RenderTransform="{Binding Transform}" />
+                </DataTemplate>
+                <DataTemplate DataType="{x:Type src:ShapeItem}">
+                    <Path Data="{Binding Geometry}"
+                          Stroke="{Binding EffectiveStroke}"
+                          Fill="{Binding EffectiveFill}"
+                          StrokeThickness="{Binding OutlineThickness}"
+                          StrokeLineJoin="Round"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          SnapsToDevicePixels="False"
+                          UseLayoutRounding="False"
+                          RenderTransform="{Binding Transform}" />
+                </DataTemplate>
+                <DataTemplate DataType="{x:Type src:TextItem}">
+                    <Path Data="{Binding Geometry}"
+                          Fill="{Binding Fill}"
+                          Stroke="{Binding Outline}"
+                          StrokeThickness="{Binding OutlineThickness}"
+                          StrokeLineJoin="Round"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          SnapsToDevicePixels="False"
+                          UseLayoutRounding="False"
+                          RenderTransform="{Binding Transform}" />
+                </DataTemplate>
+            </ItemsControl.Resources>
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Grid />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+        </ItemsControl>
+
+        <Canvas x:Name="EditOverlayCanvas"
+                Background="Transparent"
+                IsHitTestVisible="True">
+            <TextBox x:Name="EditTextBox"
+                     Visibility="Collapsed"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Padding="0"
+                     Margin="0"
+                     AcceptsReturn="True"
+                     AcceptsTab="False"
+                     TextWrapping="NoWrap"
+                     SnapsToDevicePixels="False"
+                     UseLayoutRounding="False"
+                     CaretBrush="Black"
+                     SelectionBrush="#660078D4" />
+        </Canvas>
+    </Grid>
+</UserControl>

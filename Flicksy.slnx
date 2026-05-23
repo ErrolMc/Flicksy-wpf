@@ -1,5 +1,5 @@
 <Solution>
   <Project Path="Flicksy.Agent/Flicksy.Agent.csproj" Id="2f061795-a8ae-4ad0-8553-218ab299b0a3" />
-  <Project Path="Flicksy.Editor/Flicksy.Editor.csproj" Id="af33e0a1-2a2f-4c33-9f7b-b420d8ed5b71" />
+  <Project Path="Flicksy.PostSnip/Flicksy.PostSnip.csproj" Id="af33e0a1-2a2f-4c33-9f7b-b420d8ed5b71" />
   <Project Path="Flicksy.Snipper/Flicksy.Snipper.csproj" Id="5f05be34-7c9a-4f4c-9e2f-96fcd4b24b45" />
 </Solution>

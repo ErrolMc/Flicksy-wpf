@@ -87,7 +87,7 @@ internal sealed class SnipperSessionController : IDisposable
             using var clipboardImage = new Bitmap(snipBitmap);
             System.Windows.Forms.Clipboard.SetImage(clipboardImage);
 
-            LaunchEditorWithMedia(snipPath);
+            LaunchPostSnipWithMedia(snipPath);
         }
         catch (ExternalException ex)
         {
@@ -109,12 +109,12 @@ internal sealed class SnipperSessionController : IDisposable
 
     private void OnRecordingCompleted(string path)
     {
-        LaunchEditorWithMedia(path);
+        LaunchPostSnipWithMedia(path);
     }
 
-    private void LaunchEditorWithMedia(string mediaPath)
+    private void LaunchPostSnipWithMedia(string mediaPath)
     {
-        if (TryLaunchEditorWithMedia(mediaPath, out var errorMessage))
+        if (TryLaunchPostSnipWithMedia(mediaPath, out var errorMessage))
         {
             return;
         }
@@ -126,12 +126,12 @@ internal sealed class SnipperSessionController : IDisposable
             MessageBoxImage.Warning);
     }
 
-    internal bool TryLaunchEditorWithMedia(string mediaPath, out string? errorMessage)
+    internal bool TryLaunchPostSnipWithMedia(string mediaPath, out string? errorMessage)
     {
-        var editorPath = ResolveEditorExecutablePath();
-        if (string.IsNullOrWhiteSpace(editorPath))
+        var postSnipPath = ResolvePostSnipExecutablePath();
+        if (string.IsNullOrWhiteSpace(postSnipPath))
         {
-            errorMessage = "Flicksy.Editor.exe was not found. Build Flicksy.Editor first.";
+            errorMessage = "Flicksy.PostSnip.exe was not found. Build Flicksy.PostSnip first.";
             return false;
         }
 
@@ -139,9 +139,9 @@ internal sealed class SnipperSessionController : IDisposable
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = editorPath,
+                FileName = postSnipPath,
                 Arguments = $"\"{mediaPath}\"",
-                WorkingDirectory = Path.GetDirectoryName(editorPath),
+                WorkingDirectory = Path.GetDirectoryName(postSnipPath),
                 UseShellExecute = true
             });
 
@@ -150,24 +150,24 @@ internal sealed class SnipperSessionController : IDisposable
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            errorMessage = $"Unable to start Flicksy.Editor:\n{ex.Message}";
+            errorMessage = $"Unable to start Flicksy.PostSnip:\n{ex.Message}";
             return false;
         }
         catch (InvalidOperationException ex)
         {
-            errorMessage = $"Unable to start Flicksy.Editor:\n{ex.Message}";
+            errorMessage = $"Unable to start Flicksy.PostSnip:\n{ex.Message}";
             return false;
         }
     }
 
-    private static string? ResolveEditorExecutablePath()
+    private static string? ResolvePostSnipExecutablePath()
     {
         var baseDirectory = AppContext.BaseDirectory;
         var candidates = new[]
         {
-            Path.Combine(baseDirectory, "Flicksy.Editor.exe"),
-            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Editor", "bin", "Debug", "net10.0-windows", "Flicksy.Editor.exe")),
-            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Editor", "bin", "Release", "net10.0-windows", "Flicksy.Editor.exe"))
+            Path.Combine(baseDirectory, "Flicksy.PostSnip.exe"),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.PostSnip", "bin", "Debug", "net10.0-windows", "Flicksy.PostSnip.exe")),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.PostSnip", "bin", "Release", "net10.0-windows", "Flicksy.PostSnip.exe"))
         };
 
         return candidates.FirstOrDefault(File.Exists);
