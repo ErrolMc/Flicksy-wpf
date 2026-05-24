@@ -7,11 +7,11 @@ namespace Flicksy.VideoEditor.ViewModels;
 
 /// <summary>
 /// Root view-model for the video editor shell. Owns the document <see cref="Project"/>
-/// plus the four major surfaces (<see cref="Timeline"/>, <see cref="Inspector"/>,
-/// <see cref="MediaBin"/>, selection + transport state) and the left/right panel UI state
-/// the shell binds to. Undo/redo commands are no-ops in this slice; they exist so the
-/// shell's <c>Ctrl+Z</c>/<c>Ctrl+Y</c> input bindings have something to invoke until the
-/// timeline-edit undo stack lands in #12.
+/// plus the per-surface sub-VMs (<see cref="Preview"/>, <see cref="Transport"/>,
+/// <see cref="Timeline"/>, <see cref="Inspector"/>, <see cref="MediaBin"/>) and the shell
+/// UI state (selection, panel open/closed, rail tab). Undo/redo commands are no-ops in
+/// this slice; they exist so the shell's <c>Ctrl+Z</c>/<c>Ctrl+Y</c> input bindings have
+/// something to invoke until the timeline-edit undo stack lands in #12.
 /// </summary>
 public partial class VideoEditorViewModel : ObservableObject
 {
@@ -20,9 +20,6 @@ public partial class VideoEditorViewModel : ObservableObject
 
     [ObservableProperty]
     private Clip? selectedClip;
-
-    [ObservableProperty]
-    private int playhead;
 
     [ObservableProperty]
     private LeftRailTab currentLeftTab = LeftRailTab.Media;
@@ -40,6 +37,8 @@ public partial class VideoEditorViewModel : ObservableObject
     public VideoEditorViewModel(Project.Project project)
     {
         Project = project;
+        Preview = new PreviewViewModel(project);
+        Transport = new TransportViewModel(project);
         Timeline = new TimelineViewModel();
         Inspector = new InspectorViewModel();
         MediaBin = new MediaBinViewModel();
@@ -64,6 +63,10 @@ public partial class VideoEditorViewModel : ObservableObject
     }
 
     public Project.Project Project { get; }
+
+    public PreviewViewModel Preview { get; }
+
+    public TransportViewModel Transport { get; }
 
     public TimelineViewModel Timeline { get; }
 

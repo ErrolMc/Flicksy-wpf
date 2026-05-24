@@ -4,6 +4,7 @@
         xmlns:conv="clr-namespace:Flicksy.VideoEditor.Converters"
         xmlns:vm="clr-namespace:Flicksy.VideoEditor.ViewModels"
         xmlns:rail="clr-namespace:Flicksy.VideoEditor.Controls.Rail"
+        xmlns:controls="clr-namespace:Flicksy.VideoEditor.Controls"
         xmlns:panels="clr-namespace:Flicksy.VideoEditor.Controls.Panels"
         xmlns:inspectors="clr-namespace:Flicksy.VideoEditor.Controls.Inspectors"
         Title="Flicksy Video Editor"
@@ -176,24 +177,21 @@
                           DragCompleted="OnLeftSplitterDragCompleted"
                           Visibility="{Binding IsLeftPanelOpen, Converter={StaticResource BoolToVis}}" />
 
-            <!-- Center column: Preview / Transport / Timeline placeholders -->
+            <!-- Center column: Preview on top, splitter, then a Transport+Timeline block.
+                 Grouping Transport with Timeline (rather than placing it between Preview
+                 and the splitter) means dragging the splitter resizes Preview vs the
+                 whole bottom block — Transport stays Auto-height and Timeline absorbs
+                 the remaining space. Timeline content lands in #7. -->
             <Grid Grid.Column="2" Background="{StaticResource CenterBackgroundBrush}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" MinHeight="200" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="2*" MinHeight="160" />
+                    <RowDefinition Height="2*" MinHeight="200" />
                 </Grid.RowDefinitions>
 
-                <!-- Preview placeholder (filled in #6) -->
-                <Border Grid.Row="0" Background="#0A0A0A" BorderBrush="{StaticResource ChromeBorderBrush}" BorderThickness="0,0,0,1">
-                    <TextBlock Text="Preview"
-                               Foreground="#5A5A5A"
-                               FontSize="14"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
-                </Border>
+                <controls:PreviewView Grid.Row="0" DataContext="{Binding Preview}" />
 
-                <!-- Splitter between Preview and Timeline rows -->
+                <!-- Splitter between Preview and the Transport+Timeline block. -->
                 <GridSplitter Grid.Row="1"
                               Height="4"
                               HorizontalAlignment="Stretch"
@@ -201,27 +199,23 @@
                               Background="{StaticResource SplitterBrush}"
                               ShowsPreview="False" />
 
-                <!-- Timeline placeholder (filled in #7). Click toggles a synthetic
-                     SelectedClip so the right rail can be exercised before real
-                     clip selection lands. Scaffold removed when #7 ships. -->
-                <Border Grid.Row="2"
-                        Background="#161616"
-                        BorderBrush="{StaticResource ChromeBorderBrush}"
-                        BorderThickness="0,1,0,0"
-                        Cursor="Hand"
-                        MouseLeftButtonUp="OnTimelinePlaceholderClick">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock Text="Timeline"
-                                   Foreground="#5A5A5A"
-                                   FontSize="14"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="(dev: click to toggle clip selection)"
-                                   Foreground="#3A3A3A"
-                                   FontSize="11"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,4,0,0" />
-                    </StackPanel>
-                </Border>
+                <Grid Grid.Row="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" MinHeight="160" />
+                    </Grid.RowDefinitions>
+
+                    <controls:TransportView Grid.Row="0" DataContext="{Binding Transport}" />
+
+                    <!-- Timeline placeholder UserControl (filled in #7). Click bubbles up
+                         to OnTimelinePlaceholderClick on the shell, which toggles a
+                         synthetic SelectedClip so the right rail can be exercised before
+                         real clip selection lands. Both the handler and this comment go
+                         away when #7 ships. -->
+                    <controls:TimelineView Grid.Row="1"
+                                           DataContext="{Binding Timeline}"
+                                           MouseLeftButtonUp="OnTimelinePlaceholderClick" />
+                </Grid>
             </Grid>
 
             <!-- Right panel content — fixed width (no splitter; inspector widgets
