@@ -122,6 +122,15 @@
                                              DataContext="{Binding ImageEditTools}"
                                              Visibility="{Binding DataContext.IsImage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
 
+                <Button x:Name="LaunchInVideoEditorButton"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource PrimaryToolbarButtonStyle}"
+                        Width="160"
+                        Content="Launch in video editor"
+                        Command="{Binding LaunchInVideoEditorCommand}"
+                        Visibility="{Binding IsVideoLoaded, Converter={StaticResource BoolToVis}}" />
+
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"

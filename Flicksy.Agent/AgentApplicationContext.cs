@@ -16,6 +16,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open Snipper", null, (_, _) => LaunchSnipper());
+        menu.Items.Add("New Video Project", null, (_, _) => LaunchVideoEditor());
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
 
         _notifyIcon = new NotifyIcon
@@ -78,6 +79,48 @@ internal sealed class AgentApplicationContext : ApplicationContext
             Path.Combine(baseDirectory, "Flicksy.Snipper.exe"),
             Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Snipper", "bin", "Debug", "net10.0-windows", "Flicksy.Snipper.exe")),
             Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Snipper", "bin", "Release", "net10.0-windows", "Flicksy.Snipper.exe"))
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private void LaunchVideoEditor()
+    {
+        var videoEditorPath = ResolveVideoEditorExecutablePath();
+        if (string.IsNullOrWhiteSpace(videoEditorPath))
+        {
+            ShowNotification("Flicksy.VideoEditor.exe was not found. Build Flicksy.VideoEditor first.");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = videoEditorPath,
+                Arguments = "--new-video-project",
+                WorkingDirectory = Path.GetDirectoryName(videoEditorPath),
+                UseShellExecute = true
+            });
+        }
+        catch (Win32Exception ex)
+        {
+            ShowNotification($"Unable to start Flicksy.VideoEditor: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            ShowNotification($"Unable to start Flicksy.VideoEditor: {ex.Message}");
+        }
+    }
+
+    private static string? ResolveVideoEditorExecutablePath()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDirectory, "Flicksy.VideoEditor.exe"),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.VideoEditor", "bin", "Debug", "net10.0-windows", "Flicksy.VideoEditor.exe")),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.VideoEditor", "bin", "Release", "net10.0-windows", "Flicksy.VideoEditor.exe"))
         };
 
         return candidates.FirstOrDefault(File.Exists);

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using FFMediaToolkit.Decoding;
+using FFMediaToolkit.Graphics;
 
 namespace Flicksy.VideoEditor.Project;
 
@@ -24,6 +26,37 @@ public partial class Project : ObservableObject
         project.Tracks.Add(new Track { Kind = TrackKind.Video, Name = "Video 2" });
         project.Tracks.Add(new Track { Kind = TrackKind.Overlay, Name = "Overlay" });
         project.Tracks.Add(new Track { Kind = TrackKind.Audio, Name = "Audio" });
+        return project;
+    }
+
+    public static Project CreateFromSourceFile(string sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            throw new ArgumentException("Source path is required.", nameof(sourcePath));
+        }
+
+        TimeSpan duration;
+        var options = new MediaOptions
+        {
+            StreamsToLoad = MediaMode.Video,
+            VideoPixelFormat = ImagePixelFormat.Bgra32,
+        };
+        using (var file = MediaFile.Open(sourcePath, options))
+        {
+            duration = file.Video.Info.Duration;
+        }
+
+        var project = CreateEmpty();
+        var videoTrack = project.Tracks[0];
+        videoTrack.Clips.Add(new MediaClip
+        {
+            SourcePath = sourcePath,
+            SourceIn = TimeSpan.Zero,
+            SourceOut = duration,
+            Framerate = project.Settings.Framerate,
+            TimelineStart = 0,
+        });
         return project;
     }
 

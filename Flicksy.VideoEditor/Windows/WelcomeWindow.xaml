@@ -8,6 +8,73 @@
         MinWidth="360"
         WindowStartupLocation="CenterScreen"
         Background="#121212">
+    <Window.Resources>
+        <SolidColorBrush x:Key="PrimaryButtonBrush" Color="#0078D4" />
+        <SolidColorBrush x:Key="PrimaryButtonHoverBrush" Color="#1683D8" />
+        <SolidColorBrush x:Key="PrimaryButtonPressedBrush" Color="#006CBE" />
+        <SolidColorBrush x:Key="SecondaryButtonBrush" Color="#333333" />
+        <SolidColorBrush x:Key="SecondaryButtonHoverBrush" Color="#3F3F3F" />
+        <SolidColorBrush x:Key="SecondaryButtonPressedBrush" Color="#2B2B2B" />
+        <SolidColorBrush x:Key="SecondaryButtonBorderBrush" Color="#55FFFFFF" />
+
+        <Style x:Key="WelcomeButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="220" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryWelcomeButtonStyle" TargetType="Button" BasedOn="{StaticResource WelcomeButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource PrimaryButtonBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryButtonBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryButtonHoverBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryButtonHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryButtonPressedBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryButtonPressedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SecondaryWelcomeButtonStyle" TargetType="Button" BasedOn="{StaticResource WelcomeButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource SecondaryButtonBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource SecondaryButtonBorderBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource SecondaryButtonHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource SecondaryButtonPressedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
     <Grid>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
             <TextBlock Text="Flicksy Video Editor"
@@ -17,8 +84,16 @@
                        Margin="0,0,0,24" />
             <Button x:Name="NewVideoProjectButton"
                     Content="New Video Project"
-                    Padding="18,8"
+                    Style="{StaticResource PrimaryWelcomeButtonStyle}"
                     Click="OnNewVideoProjectClicked" />
+            <Button x:Name="OpenProjectButton"
+                    Content="Open Project"
+                    Style="{StaticResource SecondaryWelcomeButtonStyle}"
+                    IsEnabled="False" />
+            <Button x:Name="OpenRecentButton"
+                    Content="Open Recent"
+                    Style="{StaticResource SecondaryWelcomeButtonStyle}"
+                    IsEnabled="False" />
         </StackPanel>
     </Grid>
 </Window>

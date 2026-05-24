@@ -20,10 +20,12 @@ public partial class PostSnipViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasMedia))]
     [NotifyPropertyChangedFor(nameof(IsImage))]
     [NotifyPropertyChangedFor(nameof(IsEmpty))]
+    [NotifyPropertyChangedFor(nameof(IsVideoLoaded))]
     private string? mediaPath;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsImage))]
+    [NotifyPropertyChangedFor(nameof(IsVideoLoaded))]
     private bool isVideo;
 
     [ObservableProperty]
@@ -129,6 +131,8 @@ public partial class PostSnipViewModel : ObservableObject
     public bool IsImage => HasMedia && !IsVideo;
 
     public bool IsEmpty => !HasMedia;
+
+    public bool IsVideoLoaded => HasMedia && IsVideo;
 
     public event EventHandler<SaveDialogRequest>? SaveDialogRequested;
     public event EventHandler<string>? ErrorOccurred;
@@ -337,6 +341,57 @@ public partial class PostSnipViewModel : ObservableObject
             Path.Combine(baseDirectory, "Flicksy.Snipper.exe"),
             Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Snipper", "bin", "Debug", "net10.0-windows", "Flicksy.Snipper.exe")),
             Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.Snipper", "bin", "Release", "net10.0-windows", "Flicksy.Snipper.exe")),
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    [RelayCommand]
+    private void LaunchInVideoEditor()
+    {
+        if (!IsVideoLoaded || string.IsNullOrWhiteSpace(MediaPath))
+        {
+            return;
+        }
+
+        var videoEditorPath = ResolveVideoEditorExecutablePath();
+        if (string.IsNullOrWhiteSpace(videoEditorPath))
+        {
+            ErrorOccurred?.Invoke(this, "Flicksy.VideoEditor.exe was not found.");
+            return;
+        }
+
+        // Hand the temp media file off to the video editor; if we let PostSnip delete
+        // it on close the editor would open a missing file.
+        PreserveMediaFile = true;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = videoEditorPath,
+                Arguments = $"\"{MediaPath}\"",
+                WorkingDirectory = Path.GetDirectoryName(videoEditorPath),
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"Unable to start Flicksy.VideoEditor:\n{ex.Message}");
+            return;
+        }
+
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static string? ResolveVideoEditorExecutablePath()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDirectory, "Flicksy.VideoEditor.exe"),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.VideoEditor", "bin", "Debug", "net10.0-windows", "Flicksy.VideoEditor.exe")),
+            Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Flicksy.VideoEditor", "bin", "Release", "net10.0-windows", "Flicksy.VideoEditor.exe")),
         };
 
         return candidates.FirstOrDefault(File.Exists);

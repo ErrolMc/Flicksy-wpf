@@ -5,6 +5,7 @@ using System.Windows;
 using Flicksy.Drawing.Media;
 using Flicksy.VideoEditor.ViewModels;
 using Flicksy.VideoEditor.Windows;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Flicksy.VideoEditor;
@@ -14,6 +15,10 @@ public partial class App : Application
     private const string NewVideoProjectArgName = "--new-video-project";
 
     private IHost? _host;
+
+    public static IServiceProvider Services =>
+        ((App)Current)._host?.Services
+            ?? throw new InvalidOperationException("Host has not been initialized.");
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -35,17 +40,23 @@ public partial class App : Application
         }
 
         var builder = Host.CreateApplicationBuilder();
+        // Factory registrations: a fresh empty Project per resolve, propagated up
+        // through the VM into the window. EditorWithSource bypasses DI and uses
+        // Project.CreateFromSourceFile() directly so the source path can flow in.
+        builder.Services.AddTransient(_ => Project.Project.CreateEmpty());
+        builder.Services.AddTransient<VideoEditorViewModel>();
+        builder.Services.AddTransient<VideoEditorWindow>();
+        builder.Services.AddTransient<WelcomeWindow>();
         _host = builder.Build();
         _host.Start();
 
         var mode = ResolveStartupMode(e.Args);
         Window window = mode switch
         {
-            StartupMode.EmptyEditor => new VideoEditorWindow(
-                new VideoEditorViewModel(Project.Project.CreateEmpty())),
+            StartupMode.EmptyEditor => _host.Services.GetRequiredService<VideoEditorWindow>(),
             StartupMode.EditorWithSource src => new VideoEditorWindow(
-                new VideoEditorViewModel(Project.Project.CreateEmpty()), src.Path),
-            _ => new WelcomeWindow(),
+                new VideoEditorViewModel(Project.Project.CreateFromSourceFile(src.Path)), src.Path),
+            _ => _host.Services.GetRequiredService<WelcomeWindow>(),
         };
 
         MainWindow = window;
