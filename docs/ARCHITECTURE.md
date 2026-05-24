@@ -226,6 +226,28 @@ Scaffold stage — process boots, parses args, routes to one of two windows, and
 
 `ResolveStartupMode` validates the positional path with `File.Exists`; a non-existent path falls through to `Welcome` rather than opening a broken editor.
 
+### 5.3 Document model
+
+Project document lives in [Flicksy.VideoEditor/Project/](../Flicksy.VideoEditor/Project). JSON-serializable POCOs — no `Brush`/`Geometry`/`MatrixTransform` on any public property. The only allowed reference into Drawing is `DrawingItem` (held by `GraphicsClip`). Shape and rationale: [ADR 0002](adr/0002-video-editor-document-model.md).
+
+Timeline positions and clip durations are integer frames at `ProjectSettings.Framerate`. `MediaClip` source-time is `TimeSpan` (source-framerate-independent).
+
+| Type | Role | Key fields |
+| --- | --- | --- |
+| [Project](../Flicksy.VideoEditor/Project/Project.cs) | Document root. Static factories `CreateEmpty()` (4 tracks: 2 Video, 1 Overlay, 1 Audio) and `CreateStub()` (a couple of MediaClips + a GraphicsClip for layout demos). | `ProjectSettings Settings`, `ObservableCollection<Track> Tracks` |
+| [ProjectSettings](../Flicksy.VideoEditor/Project/ProjectSettings.cs) | Project-wide rendering settings. | `Framerate=30`, `ResolutionWidth=1920`, `ResolutionHeight=1080`, `AudioSampleRate=48000` — all observable |
+| [Track](../Flicksy.VideoEditor/Project/Track.cs) | Ordered clips + transitions, of a single kind. | `Guid Id` (init), `TrackKind Kind` (init), `Name`, `ObservableCollection<Clip> Clips`, `List<Transition> Transitions` |
+| [TrackKind](../Flicksy.VideoEditor/Project/TrackKind.cs) | Enum: `Video`, `Overlay`, `Audio`. | |
+| [Clip](../Flicksy.VideoEditor/Project/Clip.cs) (abstract) | Common clip surface. | `Guid Id` (init), `int TimelineStart`, abstract `int Duration { get; }` |
+| [MediaClip](../Flicksy.VideoEditor/Project/MediaClip.cs) | References a video/audio source. `Duration` is computed from `(SourceOut - SourceIn) / Speed * Framerate`. `Framerate` mirrors the parent project's setting and is set by `Project` factories — the clip stores it locally so `Duration` stays a parameterless getter without a back-reference. | `SourcePath`, `SourceIn`/`SourceOut` (`TimeSpan`), `Speed=1.0`, `Volume=1.0`, `Framerate`, `Transform2D Transform`, `ObservableCollection<Filter> Filters` |
+| [GraphicsClip](../Flicksy.VideoEditor/Project/GraphicsClip.cs) | Time-bounded container of `DrawingItem`s. Settable duration lives on `DurationFrames` (C# disallows widening a get-only abstract override with a setter; `Duration` reads through `DurationFrames`). | `int DurationFrames`, `Transform2D Transform`, `ObservableCollection<DrawingItem> Items` |
+| [Transform2D](../Flicksy.VideoEditor/Project/Transform2D.cs) | Per-clip 2D transform. No `MatrixTransform` — the compositor builds the matrix at render time. | `Point Position`, `Vector Scale`, `double RotationDegrees`, `Rect? CropRect` — all observable |
+| [Transition](../Flicksy.VideoEditor/Project/Transition.cs) | Boundary object between two adjacent clips on a track (not a clip — see ADR 0002). Stored in `Track.Transitions`. | `Guid LeftClipId` (init), `Guid RightClipId` (init), `TransitionType Type`, `int Duration` (frames) |
+| [TransitionType](../Flicksy.VideoEditor/Project/TransitionType.cs) | Enum (v1 set): `Crossfade`, `FadeToBlack`, `FadeFromBlack`, `WipeLeft`, `WipeRight`. | |
+| [Filter](../Flicksy.VideoEditor/Project/Filter.cs) | Abstract marker. Concrete filter types land in a later slice. | |
+
+No UI consumes this model yet; later issues (#7 timeline, #10 compositor) bind to it.
+
 ## 6. End-to-end flow (cheat sheet)
 
 
