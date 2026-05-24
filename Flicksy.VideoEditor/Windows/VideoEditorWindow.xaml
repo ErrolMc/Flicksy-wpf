@@ -207,14 +207,8 @@
 
                     <controls:TransportView Grid.Row="0" DataContext="{Binding Transport}" />
 
-                    <!-- Timeline placeholder UserControl (filled in #7). Click bubbles up
-                         to OnTimelinePlaceholderClick on the shell, which toggles a
-                         synthetic SelectedClip so the right rail can be exercised before
-                         real clip selection lands. Both the handler and this comment go
-                         away when #7 ships. -->
                     <controls:TimelineView Grid.Row="1"
-                                           DataContext="{Binding Timeline}"
-                                           MouseLeftButtonUp="OnTimelinePlaceholderClick" />
+                                           DataContext="{Binding Timeline}" />
                 </Grid>
             </Grid>
 

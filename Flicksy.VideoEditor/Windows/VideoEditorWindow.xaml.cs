@@ -4,9 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls.Primitives;
-using System.Windows.Input;
 using System.Windows.Interop;
-using Flicksy.VideoEditor.Project;
 using Flicksy.VideoEditor.ViewModels;
 
 namespace Flicksy.VideoEditor.Windows;
@@ -28,11 +26,6 @@ public partial class VideoEditorWindow : Window
     // right panel has no splitter, so it always toggles 0 ↔ DefaultPanelWidth.
     private double _lastLeftPanelWidth = DefaultPanelWidth;
     private const double RightRailWidth = 44;
-
-    // Scaffold: synthetic clip used by the Timeline placeholder's dev toggle so the
-    // right rail's clip-gated buttons can be exercised before real clip selection
-    // lands in #7. Lazy so we don't allocate unless the user clicks.
-    private Clip? _devStubClip;
 
     public VideoEditorWindow()
         : this(viewModel: new VideoEditorViewModel(Project.Project.CreateEmpty()), sourcePath: null)
@@ -188,15 +181,4 @@ public partial class VideoEditorWindow : Window
         UpdateLeftPanelMaxWidth();
     }
 
-    private void OnTimelinePlaceholderClick(object sender, MouseButtonEventArgs e)
-    {
-        if (ViewModel.SelectedClip is not null)
-        {
-            ViewModel.SelectedClip = null;
-            return;
-        }
-
-        _devStubClip ??= new GraphicsClip { DurationFrames = 60, TimelineStart = 0 };
-        ViewModel.SelectedClip = _devStubClip;
-    }
 }

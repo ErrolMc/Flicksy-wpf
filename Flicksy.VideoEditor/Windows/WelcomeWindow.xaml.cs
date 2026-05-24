@@ -35,8 +35,11 @@ public partial class WelcomeWindow : Window
 
     private void OnNewVideoProjectClicked(object sender, RoutedEventArgs e)
     {
+        // Temporary: CreateStub instead of CreateEmpty so the timeline (issue #7) has
+        // clips to render on a fresh launch. Reverts to CreateEmpty once #9 (media bin)
+        // gives the user a way to add clips themselves.
         var editor = new VideoEditorWindow(
-            new VideoEditorViewModel(Project.Project.CreateEmpty()));
+            new VideoEditorViewModel(Project.Project.CreateStub()));
 
         // Hand window ownership to the editor so closing Welcome doesn't terminate the
         // app (App.ShutdownMode default is OnMainWindowClose).

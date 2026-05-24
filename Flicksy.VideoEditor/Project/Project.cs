@@ -57,6 +57,16 @@ public partial class Project : ObservableObject
             TimelineStart = 30,
         });
 
+        var audioTrack = project.Tracks[3];
+        audioTrack.Clips.Add(new MediaClip
+        {
+            SourcePath = @"C:\fake\soundtrack.mp3",
+            SourceIn = TimeSpan.Zero,
+            SourceOut = TimeSpan.FromSeconds(5),
+            Framerate = framerate,
+            TimelineStart = 0,
+        });
+
         return project;
     }
 }

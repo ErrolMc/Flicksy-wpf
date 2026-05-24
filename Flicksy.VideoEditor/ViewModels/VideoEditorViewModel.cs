@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Flicksy.VideoEditor.Project;
@@ -39,9 +40,15 @@ public partial class VideoEditorViewModel : ObservableObject
         Project = project;
         Preview = new PreviewViewModel(project);
         Transport = new TransportViewModel(project);
-        Timeline = new TimelineViewModel();
+        Timeline = new TimelineViewModel(project, Transport);
         Inspector = new InspectorViewModel();
         MediaBin = new MediaBinViewModel();
+
+        // Timeline.SelectedClip is the user-facing write side (clip clicks); root's
+        // SelectedClip is what every other surface reads (right rail, inspectors).
+        // Sync both ways so a click in the timeline flows up and an external clear
+        // (or future programmatic select) flows back down.
+        Timeline.PropertyChanged += OnTimelinePropertyChanged;
 
         LeftRailItems = new[]
         {
@@ -77,6 +84,22 @@ public partial class VideoEditorViewModel : ObservableObject
     public IReadOnlyList<RailItem> LeftRailItems { get; }
 
     public IReadOnlyList<RailItem> RightRailItems { get; }
+
+    partial void OnSelectedClipChanged(Clip? value)
+    {
+        if (Timeline.SelectedClip != value)
+        {
+            Timeline.SelectedClip = value;
+        }
+    }
+
+    private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TimelineViewModel.SelectedClip) && SelectedClip != Timeline.SelectedClip)
+        {
+            SelectedClip = Timeline.SelectedClip;
+        }
+    }
 
     [RelayCommand]
     private void Undo()
