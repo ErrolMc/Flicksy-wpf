@@ -204,16 +204,16 @@ Convention: commands are pushed **after** the change has already mutated state (
 
 ## 5. Flicksy.VideoEditor (multi-clip editor)
 
-Scaffold stage — process boots, parses args, routes to one of two windows, and initializes FFmpeg. No editing surface yet (lands in later issues). Future code will reuse Drawing for any per-clip annotation work.
+Shell stage — process boots, parses args, routes to Welcome or the editor shell, and initializes FFmpeg. The shell is a top toolbar + 5-column body (rail · panel · center · panel · rail). The center column has Preview / Timeline placeholders; real preview lands in #6 and the timeline in #7. Future code will reuse Drawing for per-clip annotation work.
 
 ### 5.1 Files
 
 | File | Purpose |
 | --- | --- |
-| [App.xaml](../Flicksy.VideoEditor/App.xaml) / [App.xaml.cs](../Flicksy.VideoEditor/App.xaml.cs) | No `StartupUri`. `OnStartup`: `FfmpegLocator.Initialize()`, build a `Microsoft.Extensions.Hosting` DI host, call `ResolveStartupMode(e.Args)`, instantiate and `Show()` the matching window. `OnExit` stops + disposes the host. |
+| [App.xaml](../Flicksy.VideoEditor/App.xaml) / [App.xaml.cs](../Flicksy.VideoEditor/App.xaml.cs) | No `StartupUri`. `OnStartup`: `FfmpegLocator.Initialize()`, build a `Microsoft.Extensions.Hosting` DI host, call `ResolveStartupMode(e.Args)`, instantiate the matching window (constructing a `VideoEditorViewModel` over `Project.CreateEmpty()` for editor modes), `Show()` it. `OnExit` stops + disposes the host. |
 | [StartupMode.cs](../Flicksy.VideoEditor/StartupMode.cs) | Discriminated record: `Welcome` \| `EmptyEditor` \| `EditorWithSource(string Path)`. |
-| [Windows/WelcomeWindow.xaml(.cs)](../Flicksy.VideoEditor/Windows/WelcomeWindow.xaml.cs) | Placeholder. Centered `New Video Project` button (no-op for now). Dark titlebar via `DwmSetWindowAttribute`. Title `"Flicksy Video Editor — Welcome"`. |
-| [Windows/VideoEditorWindow.xaml(.cs)](../Flicksy.VideoEditor/Windows/VideoEditorWindow.xaml.cs) | Blank `Grid`. Two ctors: parameterless (`EmptyEditor`) and `(string? sourcePath)` (`EditorWithSource`). When a path is supplied, the file name is appended to the title for verification. Dark titlebar via `DwmSetWindowAttribute`. |
+| [Windows/WelcomeWindow.xaml(.cs)](../Flicksy.VideoEditor/Windows/WelcomeWindow.xaml.cs) | Centered `New Video Project` button. Click opens a `VideoEditorWindow` with `Project.CreateEmpty()`, reassigns `Application.Current.MainWindow` (so the default `OnMainWindowClose` shutdown mode now tracks the editor), then closes the Welcome window. Dark titlebar via `DwmSetWindowAttribute`. |
+| [Windows/VideoEditorWindow.xaml(.cs)](../Flicksy.VideoEditor/Windows/VideoEditorWindow.xaml.cs) | Editor shell. Top toolbar (project name `TextBox`, Undo/Redo, Export placeholder) + 5-column grid below. Ctors: parameterless and `(string? sourcePath)` both build a default `VideoEditorViewModel`; `(VideoEditorViewModel, string? sourcePath = null)` is the canonical one used by `App`/`WelcomeWindow`. `Ctrl+Z`/`Ctrl+Y` `InputBindings` invoke the VM's `UndoCommand`/`RedoCommand`. |
 
 ### 5.2 Entry modes
 
@@ -247,6 +247,46 @@ Timeline positions and clip durations are integer frames at `ProjectSettings.Fra
 | [Filter](../Flicksy.VideoEditor/Project/Filter.cs) | Abstract marker. Concrete filter types land in a later slice. | |
 
 No UI consumes this model yet; later issues (#7 timeline, #10 compositor) bind to it.
+
+### 5.4 ViewModels
+
+Rooted at [VideoEditorViewModel](../Flicksy.VideoEditor/ViewModels/VideoEditorViewModel.cs). The shell binds to this VM as its `DataContext`; the four sub-VMs are owned references that later slices fill in.
+
+| VM | Owns / Coordinates |
+| --- | --- |
+| [VideoEditorViewModel](../Flicksy.VideoEditor/ViewModels/VideoEditorViewModel.cs) | Root. Holds `Project`, `Timeline`, `Inspector`, `MediaBin`, plus shell UI state: `ProjectName`, `SelectedClip` (`Clip?`), `Playhead` (int frame), `CurrentLeftTab` ([LeftRailTab](../Flicksy.VideoEditor/ViewModels/LeftRailTab.cs)), `CurrentRightTab` ([RightRailTab](../Flicksy.VideoEditor/ViewModels/RightRailTab.cs)), `IsLeftPanelOpen`, `IsRightPanelOpen`. Also exposes `LeftRailItems`/`RightRailItems` (built once in the ctor) for the rails. `UndoCommand`/`RedoCommand`/`ExportCommand` are no-ops in this slice. |
+| [TimelineViewModel](../Flicksy.VideoEditor/ViewModels/TimelineViewModel.cs) | Stub — populated in #7. |
+| [InspectorViewModel](../Flicksy.VideoEditor/ViewModels/InspectorViewModel.cs) | Stub — populated in #15–#18. |
+| [MediaBinViewModel](../Flicksy.VideoEditor/ViewModels/MediaBinViewModel.cs) | Stub — populated in #9. |
+| [RailItem](../Flicksy.VideoEditor/ViewModels/RailItem.cs) | Plain record-like class consumed by `RailView.ItemsSource`. `Label` + `Glyph` (placeholder icon) + `Tag` (the `LeftRailTab`/`RightRailTab` value the rail selects on click). |
+
+### 5.5 Controls
+
+| Control | Purpose |
+| --- | --- |
+| [RailView](../Flicksy.VideoEditor/Controls/Rail/RailView.xaml.cs) | Vertical icon-button strip backing both rails. DPs: `ItemsSource` (`IEnumerable` of `RailItem`), `SelectedTag` (two-way, the selected item's `Tag`), `IsPanelOpen` (two-way), `ItemsEnabled` (gates every button — currently unused; the right rail is hidden entirely when there's no selection). Click handling lives entirely in `PreviewMouseLeftButtonDown`: clicking a new item sets `SelectedTag` + `IsPanelOpen = true`; clicking the already-selected item toggles `IsPanelOpen`. `ListBox`'s built-in selection is bypassed because `ListBoxItem.Focusable=False` (set so the icons don't show a focus rect) makes `HandleMouseButtonDown` bail before raising `SelectionChanged`. |
+| [StubSurface](../Flicksy.VideoEditor/Controls/StubSurface.cs) | Base `UserControl` for placeholder panel/inspector content. Centers a label with the tab name. Subclasses (5 in `Controls/Panels/`, 5 in `Controls/Inspectors/`) are one-line `public sealed class XxxPanel : StubSurface { public XxxPanel() : base("Xxx") { } }`. |
+
+Stub panel + inspector classes (one per rail tab; will be replaced by real controls in later slices):
+
+- `Controls/Panels/`: `MediaPanel`, `TextPanel`, `ShapesPanel`, `PenPanel`, `TransitionsPanel`
+- `Controls/Inspectors/`: `SpeedInspector`, `AudioInspector`, `AdjustColorsInspector`, `FiltersInspector`, `FadeInspector`
+
+Converters in [Converters/](../Flicksy.VideoEditor/Converters):
+
+| Converter | Purpose |
+| --- | --- |
+| [EnumToVisibilityConverter](../Flicksy.VideoEditor/Converters/EnumToVisibilityConverter.cs) | `value == ConverterParameter` → `Visible`, else `Collapsed`. Used to swap left/right panel content by `CurrentLeftTab` / `CurrentRightTab`. |
+
+### 5.6 Shell layout
+
+[VideoEditorWindow.xaml](../Flicksy.VideoEditor/Windows/VideoEditorWindow.xaml) is the only editor window. Two rows: top toolbar (auto) + body (star). Body is 5 columns: left rail (44 fixed) · left panel (`x:Name="LeftPanelColumn"`, 280 default, MinWidth 0) · center (`*`, MinWidth 320) · right panel (`x:Name="RightPanelColumn"`, same) · right rail (`x:Name="RightRailColumn"`, 44 default, MinWidth 0). Both panels host all five stub controls stacked in the same `Grid`, each toggled visible by `EnumToVisibilityConverter` against the corresponding `CurrentXxxTab` value.
+
+Only the left panel is user-resizable. Its `GridSplitter` is a direct child of the outer body grid (not nested inside the panel content) — a splitter only resizes its direct parent grid's columns. Placement: `Grid.Column="1"`, HorizontalAlignment=Right, default `BasedOnAlignment` resize behavior, which combined with the alignment picks the splitter's own column + the next (so dragging shrinks the panel and grows the center, or vice versa). Splitter `Visibility` is bound to `IsLeftPanelOpen` so a collapsed panel hides its splitter. The right panel is fixed-width (280) — no splitter. A horizontal splitter sits between the center column's Preview row (`*`, MinHeight 200) and Timeline row (`2*`, MinHeight 160).
+
+[VideoEditorWindow.xaml.cs](../Flicksy.VideoEditor/Windows/VideoEditorWindow.xaml.cs) owns the panel collapse logic. Binding `ColumnDefinition.Width` to a converter would have worked for toggle, but `GridSplitter` writes `Width` directly on drag — that would clobber the binding. Instead, the code-behind subscribes to `ViewModel.PropertyChanged` for `IsLeftPanelOpen`/`IsRightPanelOpen` and writes the column `Width` itself: for the left panel, collapse stashes the current `Width` in a private field (so a drag-resized value is preserved) and sets `Width=0`, expand restores from the stash. The right panel always toggles 0 ↔ 280 since it can't be resized.
+
+The right rail itself is also code-behind-managed: when `SelectedClip` is null, the right-rail column collapses to 0 (rail hidden) and `IsRightPanelOpen` is forced false. When a clip is selected, the column expands back to 44.
 
 ## 6. End-to-end flow (cheat sheet)
 
@@ -304,3 +344,4 @@ The alias name is `Images` rather than `Icons` because a using-alias of `Icons` 
 | Modify save format | [PostSnipViewModel.Save](../Flicksy.PostSnip/ViewModels/PostSnipViewModel.cs) + `SaveImageWithDrawing`. |
 | Change toolbar layout | [ImageEditToolsView.xaml](../Flicksy.PostSnip/Controls/ImageEditToolsView.xaml) + [PostSnipWindow.xaml](../Flicksy.PostSnip/PostSnipWindow.xaml). |
 | Add a new shared icon | drop PNG into [Flicksy.Icons/Resources/](../Flicksy.Icons/Resources), add entry to [Resources.resx](../Flicksy.Icons/Properties/Resources.resx), regenerate `Resources.Designer.cs` (or hand-add a public property). Consume via `Images.<name>`. |
+| Add a video-editor rail tab | extend [LeftRailTab](../Flicksy.VideoEditor/ViewModels/LeftRailTab.cs) or [RightRailTab](../Flicksy.VideoEditor/ViewModels/RightRailTab.cs), add a `RailItem` in [VideoEditorViewModel](../Flicksy.VideoEditor/ViewModels/VideoEditorViewModel.cs) ctor, add a stub class in `Controls/Panels/` or `Controls/Inspectors/`, wire its `Visibility` in [VideoEditorWindow.xaml](../Flicksy.VideoEditor/Windows/VideoEditorWindow.xaml) with `EnumToVisibilityConverter`. |

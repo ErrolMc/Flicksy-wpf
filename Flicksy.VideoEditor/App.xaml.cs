@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using Flicksy.Drawing.Media;
+using Flicksy.VideoEditor.ViewModels;
 using Flicksy.VideoEditor.Windows;
 using Microsoft.Extensions.Hosting;
 
@@ -40,8 +41,10 @@ public partial class App : Application
         var mode = ResolveStartupMode(e.Args);
         Window window = mode switch
         {
-            StartupMode.EmptyEditor => new VideoEditorWindow(),
-            StartupMode.EditorWithSource src => new VideoEditorWindow(src.Path),
+            StartupMode.EmptyEditor => new VideoEditorWindow(
+                new VideoEditorViewModel(Project.Project.CreateEmpty())),
+            StartupMode.EditorWithSource src => new VideoEditorWindow(
+                new VideoEditorViewModel(Project.Project.CreateEmpty()), src.Path),
             _ => new WelcomeWindow(),
         };
 

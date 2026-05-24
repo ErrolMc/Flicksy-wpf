@@ -1,8 +1,13 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
+using Flicksy.VideoEditor.Project;
+using Flicksy.VideoEditor.ViewModels;
 
 namespace Flicksy.VideoEditor.Windows;
 
@@ -10,25 +15,53 @@ public partial class VideoEditorWindow : Window
 {
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19;
+    private const double DefaultPanelWidth = 280;
+    private const double LeftRailWidth = 44;
+    private const double CenterMinWidth = 320;
 
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
+    // Remembers the left panel's last user-resized width so re-expanding restores
+    // it rather than snapping back to the default. Set when the panel is open and
+    // the user drags the splitter (or initially from the XAML's 280 default). The
+    // right panel has no splitter, so it always toggles 0 ↔ DefaultPanelWidth.
+    private double _lastLeftPanelWidth = DefaultPanelWidth;
+    private const double RightRailWidth = 44;
+
+    // Scaffold: synthetic clip used by the Timeline placeholder's dev toggle so the
+    // right rail's clip-gated buttons can be exercised before real clip selection
+    // lands in #7. Lazy so we don't allocate unless the user clicks.
+    private Clip? _devStubClip;
+
     public VideoEditorWindow()
-        : this(null)
+        : this(viewModel: new VideoEditorViewModel(Project.Project.CreateEmpty()), sourcePath: null)
     {
     }
 
     public VideoEditorWindow(string? sourcePath)
+        : this(viewModel: new VideoEditorViewModel(Project.Project.CreateEmpty()), sourcePath: sourcePath)
+    {
+    }
+
+    public VideoEditorWindow(VideoEditorViewModel viewModel, string? sourcePath = null)
     {
         InitializeComponent();
 
+        ViewModel = viewModel;
+        DataContext = viewModel;
         SourcePath = sourcePath;
+
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
             Title = $"Flicksy Video Editor — {Path.GetFileName(sourcePath)}";
         }
+
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        SyncPanelColumnsFromViewModel();
     }
+
+    public VideoEditorViewModel ViewModel { get; }
 
     public string? SourcePath { get; }
 
@@ -44,5 +77,126 @@ public partial class VideoEditorWindow : Window
         {
             DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, ref useDark, sizeof(int));
         }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(VideoEditorViewModel.IsLeftPanelOpen):
+                ApplyLeftPanelState();
+                break;
+            case nameof(VideoEditorViewModel.IsRightPanelOpen):
+                ApplyRightPanelState();
+                break;
+            case nameof(VideoEditorViewModel.SelectedClip):
+                ApplyRightRailState();
+                break;
+        }
+    }
+
+    private void SyncPanelColumnsFromViewModel()
+    {
+        ApplyLeftPanelState();
+        ApplyRightPanelState();
+        ApplyRightRailState();
+    }
+
+    private void ApplyLeftPanelState()
+    {
+        if (ViewModel.IsLeftPanelOpen)
+        {
+            LeftPanelColumn.Width = new GridLength(_lastLeftPanelWidth);
+        }
+        else
+        {
+            // Remember the width we're collapsing from (might be the user-dragged value).
+            if (LeftPanelColumn.Width.IsAbsolute && LeftPanelColumn.Width.Value > 0)
+            {
+                _lastLeftPanelWidth = LeftPanelColumn.Width.Value;
+            }
+            LeftPanelColumn.Width = new GridLength(0);
+        }
+        UpdateLeftPanelMaxWidth();
+    }
+
+    private void ApplyRightPanelState()
+    {
+        RightPanelColumn.Width = ViewModel.IsRightPanelOpen
+            ? new GridLength(DefaultPanelWidth)
+            : new GridLength(0);
+        UpdateLeftPanelMaxWidth();
+    }
+
+    private void ApplyRightRailState()
+    {
+        if (ViewModel.SelectedClip is not null)
+        {
+            RightRailColumn.Width = new GridLength(RightRailWidth);
+        }
+        else
+        {
+            // No selection → no per-clip inspectors are meaningful; hide the rail
+            // entirely and force any open inspector closed.
+            RightRailColumn.Width = new GridLength(0);
+            ViewModel.IsRightPanelOpen = false;
+        }
+        UpdateLeftPanelMaxWidth();
+    }
+
+    // Caps the left panel so dragging the splitter can't push the right columns
+    // off-screen. The cap = total body width minus everything to the right of the
+    // panel (center min + right panel current + right rail current).
+    private void UpdateLeftPanelMaxWidth()
+    {
+        var available = BodyGrid.ActualWidth;
+        if (available <= 0) return;
+
+        var rightPanelW = RightPanelColumn.Width.IsAbsolute ? RightPanelColumn.Width.Value : 0;
+        var rightRailW = RightRailColumn.Width.IsAbsolute ? RightRailColumn.Width.Value : 0;
+        var reserved = LeftRailWidth + CenterMinWidth + rightPanelW + rightRailW;
+        var maxLeft = Math.Max(0, available - reserved);
+
+        LeftPanelColumn.MaxWidth = maxLeft;
+
+        // If the current width exceeds the new cap (e.g. window shrank, right rail
+        // appeared), pull it back in immediately — setting MaxWidth alone doesn't
+        // shrink an oversized explicit Width.
+        if (LeftPanelColumn.Width.IsAbsolute && LeftPanelColumn.Width.Value > maxLeft)
+        {
+            LeftPanelColumn.Width = new GridLength(maxLeft);
+            _lastLeftPanelWidth = maxLeft;
+        }
+    }
+
+    private void OnBodyGridSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateLeftPanelMaxWidth();
+    }
+
+    private void OnLeftSplitterDragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        // GridSplitter converts the adjacent star column (center) to an explicit
+        // pixel width during drag. Restore it so subsequent window resizes can
+        // flex the center column again.
+        CenterColumn.Width = new GridLength(1, GridUnitType.Star);
+
+        if (LeftPanelColumn.Width.IsAbsolute)
+        {
+            _lastLeftPanelWidth = LeftPanelColumn.Width.Value;
+        }
+        UpdateLeftPanelMaxWidth();
+    }
+
+    private void OnTimelinePlaceholderClick(object sender, MouseButtonEventArgs e)
+    {
+        if (ViewModel.SelectedClip is not null)
+        {
+            ViewModel.SelectedClip = null;
+            return;
+        }
+
+        _devStubClip ??= new GraphicsClip { DurationFrames = 60, TimelineStart = 0 };
+        ViewModel.SelectedClip = _devStubClip;
     }
 }

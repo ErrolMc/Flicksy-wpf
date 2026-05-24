@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using Flicksy.VideoEditor.ViewModels;
 
 namespace Flicksy.VideoEditor.Windows;
 
@@ -34,5 +35,13 @@ public partial class WelcomeWindow : Window
 
     private void OnNewVideoProjectClicked(object sender, RoutedEventArgs e)
     {
+        var editor = new VideoEditorWindow(
+            new VideoEditorViewModel(Project.Project.CreateEmpty()));
+
+        // Hand window ownership to the editor so closing Welcome doesn't terminate the
+        // app (App.ShutdownMode default is OnMainWindowClose).
+        Application.Current.MainWindow = editor;
+        editor.Show();
+        Close();
     }
 }
