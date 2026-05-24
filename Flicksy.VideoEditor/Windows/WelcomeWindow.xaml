@@ -1,0 +1,24 @@
+<Window x:Class="Flicksy.VideoEditor.Windows.WelcomeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Flicksy Video Editor — Welcome"
+        Height="360"
+        Width="520"
+        MinHeight="240"
+        MinWidth="360"
+        WindowStartupLocation="CenterScreen"
+        Background="#121212">
+    <Grid>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="Flicksy Video Editor"
+                       Foreground="#FFFFFF"
+                       FontSize="22"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,24" />
+            <Button x:Name="NewVideoProjectButton"
+                    Content="New Video Project"
+                    Padding="18,8"
+                    Click="OnNewVideoProjectClicked" />
+        </StackPanel>
+    </Grid>
+</Window>

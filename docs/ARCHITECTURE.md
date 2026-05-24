@@ -4,13 +4,14 @@ Token-optimized map of the current build. Read this first; jump to specific file
 
 ## 1. Solution shape
 
-5 projects, defined in [Flicksy.slnx](../Flicksy.slnx). Three WinExes communicate by **launching each other as separate processes** (no project refs between them); both interactive editors reference two class libraries for shared rendering primitives and icon assets.
+6 projects, defined in [Flicksy.slnx](../Flicksy.slnx). Four WinExes communicate by **launching each other as separate processes** (no project refs between them); both interactive editors reference the shared Drawing library, and PostSnip additionally references Icons.
 
 | Project | OutputType | UI tech | TFM | Role |
 | --- | --- | --- | --- | --- |
 | [Flicksy.Agent](../Flicksy.Agent) | WinExe | WinForms (tray) | net10.0-windows | Background tray app. Registers global hotkey `Ctrl+Shift+Alt+S`. Launches `Flicksy.Snipper.exe`. |
 | [Flicksy.Snipper](../Flicksy.Snipper) | WinExe | WPF + WinForms interop | net10.0-windows | Screen-region selection. Modes: **snip** (bitmap → PNG) or **record** (ffmpeg gdigrab → MP4). Launches `Flicksy.PostSnip.exe <mediaPath>`. |
 | [Flicksy.PostSnip](../Flicksy.PostSnip) | WinExe | WPF (MVVM) | net10.0-windows | Image/video editor. Opens passed media, lets user annotate image or scrub video, saves output. References Drawing + Icons. |
+| [Flicksy.VideoEditor](../Flicksy.VideoEditor) | WinExe | WPF (MVVM) | net10.0-windows | Multi-clip video editor. Arg-driven entry: no args → Welcome, `--new-video-project` → empty editor, positional path → editor with source. References Drawing. |
 | [Flicksy.Drawing](../Flicksy.Drawing) | Library | WPF (MVVM) | net10.0-windows | Shared drawing primitives: `DrawingItem` hierarchy, tool system, undo manager, FFmpeg playback, `DrawingView` + selection overlay. References Icons. |
 | [Flicksy.Icons](../Flicksy.Icons) | Library | none (assets only) | net10.0 | Icon PNGs + strongly-typed `Flicksy.Icons.Properties.Resources` accessor. Exposed to consumers as the alias `Images` via csproj-level `<Using Include="..." Alias="Images" />` (alias is `Images` not `Icons` because the `Flicksy.Icons` namespace would shadow `Icons` per C# §13.6 lookup order). |
 
@@ -21,6 +22,7 @@ Token-optimized map of the current build. Read this first; jump to specific file
 - **Agent → Snipper**: spawned with no args. Resolved via sibling-folder probing in [AgentApplicationContext.ResolveSnipperExecutablePath](../Flicksy.Agent/AgentApplicationContext.cs).
 - **Snipper → PostSnip**: spawned with the media path as first arg (quoted). See [SnipperSessionController.TryLaunchPostSnipWithMedia](../Flicksy.Snipper/SnipperSessionController.cs).
 - **PostSnip startup arg parsing**: [App.ResolveStartupMediaPath](../Flicksy.PostSnip/App.xaml.cs) accepts `--launch-file <path>`, a positional first arg, or falls back to `LaunchPostSnipWithFilePath` in [appsettings.json](../Flicksy.PostSnip/appsettings.json) (used for dev launches without going through Snipper).
+- **VideoEditor startup arg parsing**: [App.ResolveStartupMode](../Flicksy.VideoEditor/App.xaml.cs) returns a [StartupMode](../Flicksy.VideoEditor/StartupMode.cs) discriminated record — no args → `Welcome`, `--new-video-project` → `EmptyEditor`, positional first arg that's an existing file → `EditorWithSource(path)`. Unrecognized args fall back to `Welcome`. No external launcher exists yet (Agent/PostSnip entry pathways land later).
 - **Temp media files**: written to `%TEMP%/flicksy-snip-{guid}.png` or `%TEMP%/flicksy-recording-{guid}.mp4`. PostSnip deletes them on close unless `PreserveMediaFile` is set ([PostSnipViewModel.DeleteMediaFile](../Flicksy.PostSnip/ViewModels/PostSnipViewModel.cs)). Set by `App` when launched with an explicit arg so dev runs don't nuke user files.
 
 ### 1.2 External dependencies
@@ -98,7 +100,7 @@ Flicksy.Drawing/
     SelectionOverlayViewModel
 ```
 
-Icon PNGs (rotate puck, shape options, toolbar buttons) live in **Flicksy.Icons** — see §5.
+Icon PNGs (rotate puck, shape options, toolbar buttons) live in **Flicksy.Icons** — see §7.
 
 ### 4.2 ViewModels
 
@@ -200,7 +202,31 @@ Convention: commands are pushed **after** the change has already mutated state (
 - **Image without drawings or crop** or **video**: copy the source file to the destination (no re-encode).
 - Save dialog is shown by the window code-behind (the VM raises `SaveDialogRequested`).
 
-## 5. End-to-end flow (cheat sheet)
+## 5. Flicksy.VideoEditor (multi-clip editor)
+
+Scaffold stage — process boots, parses args, routes to one of two windows, and initializes FFmpeg. No editing surface yet (lands in later issues). Future code will reuse Drawing for any per-clip annotation work.
+
+### 5.1 Files
+
+| File | Purpose |
+| --- | --- |
+| [App.xaml](../Flicksy.VideoEditor/App.xaml) / [App.xaml.cs](../Flicksy.VideoEditor/App.xaml.cs) | No `StartupUri`. `OnStartup`: `FfmpegLocator.Initialize()`, build a `Microsoft.Extensions.Hosting` DI host, call `ResolveStartupMode(e.Args)`, instantiate and `Show()` the matching window. `OnExit` stops + disposes the host. |
+| [StartupMode.cs](../Flicksy.VideoEditor/StartupMode.cs) | Discriminated record: `Welcome` \| `EmptyEditor` \| `EditorWithSource(string Path)`. |
+| [Windows/WelcomeWindow.xaml(.cs)](../Flicksy.VideoEditor/Windows/WelcomeWindow.xaml.cs) | Placeholder. Centered `New Video Project` button (no-op for now). Dark titlebar via `DwmSetWindowAttribute`. Title `"Flicksy Video Editor — Welcome"`. |
+| [Windows/VideoEditorWindow.xaml(.cs)](../Flicksy.VideoEditor/Windows/VideoEditorWindow.xaml.cs) | Blank `Grid`. Two ctors: parameterless (`EmptyEditor`) and `(string? sourcePath)` (`EditorWithSource`). When a path is supplied, the file name is appended to the title for verification. Dark titlebar via `DwmSetWindowAttribute`. |
+
+### 5.2 Entry modes
+
+| Args | Mode | Window shown |
+| --- | --- | --- |
+| _(none)_ | `Welcome` | `WelcomeWindow` |
+| `--new-video-project` | `EmptyEditor` | blank `VideoEditorWindow` |
+| `<path-to-existing-file>` (positional, first arg) | `EditorWithSource(path)` | `VideoEditorWindow` with filename in title |
+| anything else | falls back to `Welcome` | `WelcomeWindow` |
+
+`ResolveStartupMode` validates the positional path with `File.Exists`; a non-existent path falls through to `Welcome` rather than opening a broken editor.
+
+## 6. End-to-end flow (cheat sheet)
 
 
 
@@ -211,7 +237,7 @@ Convention: commands are pushed **after** the change has already mutated state (
 5. PostSnip [App.OnStartup](../Flicksy.PostSnip/App.xaml.cs) initializes FFmpeg, builds the DI host, resolves `PostSnipWindow`, loads the media (`LoadImage` or `LoadVideoAsync`).
 6. User annotates (Pen/Shape/Text/Erase via tools), navigates (pan/zoom/scrub), undoes (Ctrl+Z), saves (PNG or copied MP4) or cancels. PostSnip deletes the temp file on close unless `PreserveMediaFile` was set.
 
-## 6. Flicksy.Icons (icon assets)
+## 7. Flicksy.Icons (icon assets)
 
 `net10.0` class library. No WPF; consumers convert `System.Drawing.Bitmap` to `ImageSource` via `BitmapExtensions.ToImageSource()` (in Drawing).
 
@@ -233,7 +259,7 @@ Both [Flicksy.Drawing.csproj](../Flicksy.Drawing/Flicksy.Drawing.csproj) and [Fl
 
 The alias name is `Images` rather than `Icons` because a using-alias of `Icons` would be shadowed by the `Flicksy.Icons` namespace at every call site (C# §13.6 resolves namespace members before using aliases).
 
-## 7. Conventions seen in this codebase
+## 8. Conventions seen in this codebase
 
 - **MVVM via CommunityToolkit.Mvvm**: `[ObservableProperty]` on private fields generates the public property; `[RelayCommand]` on a private method generates a public `XxxCommand`. Don't hand-roll PropertyChanged.
 - **Tool extensibility**: new tools implement [IDrawingTool](../Flicksy.Drawing/Interaction/IDrawingTool.cs), get instantiated + registered in [DrawingView.OnDataContextChanged](../Flicksy.Drawing/Controls/DrawingView/DrawingView.xaml.cs), and depend on small `IXxxConfig` interfaces — not on `DrawingView` directly.
@@ -242,7 +268,7 @@ The alias name is `Images` rather than `Icons` because a using-alias of `Icons` 
 - **No file watcher / hot reload / live config** — `appsettings.json` is read once at startup.
 - **No tests** in the repo currently.
 
-## 8. Where to look for common changes
+## 9. Where to look for common changes
 
 | Change request | Primary file(s) |
 | --- | --- |
