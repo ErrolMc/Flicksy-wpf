@@ -16,6 +16,7 @@
         <SolidColorBrush x:Key="CellSelectedBrush" Color="#0078D4" />
         <SolidColorBrush x:Key="CellBorderBrush" Color="#333333" />
         <SolidColorBrush x:Key="CellLabelBrush" Color="#E6E6E6" />
+        <SolidColorBrush x:Key="CellMissingBrush" Color="#D63A3A" />
         <SolidColorBrush x:Key="CellBadgeBrush" Color="#000000" />
         <SolidColorBrush x:Key="CellBadgeForegroundBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="ToolbarBackgroundBrush" Color="#1F1F1F" />
@@ -65,8 +66,23 @@
             <Setter Property="ContextMenu">
                 <Setter.Value>
                     <ContextMenu>
+                        <MenuItem Header="Rename"
+                                  Command="{Binding PlacementTarget.Tag.BeginRenameCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        <!-- Relocate is enabled only when the source is missing — the recovery
+                             flow for a moved/deleted file. Repointing a present source to a
+                             different file is a separate operation (not in this slice). -->
+                        <MenuItem Header="Relocate…"
+                                  IsEnabled="{Binding PlacementTarget.DataContext.Source.IsMissing, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  Command="{Binding PlacementTarget.Tag.RelocateCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        <Separator />
                         <MenuItem Header="Reveal in Explorer"
                                   Command="{Binding PlacementTarget.Tag.RevealCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        <Separator />
+                        <MenuItem Header="Remove"
+                                  Command="{Binding PlacementTarget.Tag.RemoveCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                   CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                     </ContextMenu>
                 </Setter.Value>
@@ -86,6 +102,12 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="CellBorder" Property="BorderBrush" Value="#5A5A5A" />
                             </Trigger>
+                            <!-- Missing-state border — wins over hover, loses to selection
+                                 (last trigger applies). The cell also gets a red name +
+                                 a "?" glyph in the thumbnail area via the DataTemplate. -->
+                            <DataTrigger Binding="{Binding Source.IsMissing}" Value="True">
+                                <Setter TargetName="CellBorder" Property="BorderBrush" Value="{StaticResource CellMissingBrush}" />
+                            </DataTrigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="CellBorder" Property="BorderBrush" Value="{StaticResource CellSelectedBrush}" />
                                 <Setter TargetName="CellBorder" Property="BorderThickness" Value="2" />
@@ -104,13 +126,24 @@
                 </Grid.RowDefinitions>
 
                 <!-- Thumbnail / glyph area. Uniform-stretch keeps source aspect; missing
-                     thumbnail simply renders the cell background through. -->
+                     sources skip the worker entirely and render the cell background
+                     through with a red "?" overlay (see Missing-state below). -->
                 <Border Grid.Row="0" ClipToBounds="True">
                     <Grid>
                         <Image Source="{Binding Thumbnail}"
                                Stretch="Uniform"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center" />
+                        <!-- Missing-state placeholder. Visible only when Source.IsMissing —
+                             the bin VM never assigns a Thumbnail to missing sources, so the
+                             only thing the cell would otherwise show is empty space. -->
+                        <TextBlock Text="?"
+                                   FontSize="36"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource CellMissingBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding Source.IsMissing, Converter={StaticResource BoolToVis}}" />
                         <!-- Duration badge — bottom-right of thumbnail area. -->
                         <Border HorizontalAlignment="Right"
                                 VerticalAlignment="Bottom"
@@ -126,13 +159,36 @@
                     </Grid>
                 </Border>
 
-                <TextBlock Grid.Row="1"
-                           Text="{Binding Source.DisplayName}"
-                           Foreground="{StaticResource CellLabelBrush}"
-                           FontSize="11"
-                           Margin="0,2,0,0"
-                           TextTrimming="CharacterEllipsis"
-                           ToolTip="{Binding Source.SourcePath}" />
+                <!-- Name row: TextBlock by default; collapses to a TextBox while IsEditing.
+                     The TextBox's commit/cancel/lost-focus handlers live in
+                     MediaPanel.xaml.cs and route through the bin VM's rename commands. -->
+                <Grid Grid.Row="1" Margin="0,2,0,0">
+                    <TextBlock Text="{Binding Source.DisplayName}"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding Source.SourcePath}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource CellLabelBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Source.IsMissing}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource CellMissingBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBox Text="{Binding EditingName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="11"
+                             Padding="2,1"
+                             Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"
+                             IsVisibleChanged="OnRenameTextBoxVisibleChanged"
+                             KeyDown="OnRenameTextBoxKeyDown"
+                             LostFocus="OnRenameTextBoxLostFocus" />
+                </Grid>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>

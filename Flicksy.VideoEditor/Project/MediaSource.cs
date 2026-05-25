@@ -55,8 +55,10 @@ public partial class MediaSource : ObservableObject
     [ObservableProperty]
     private int channelCount;
 
-    // Runtime flag — true if the source's file is no longer openable. Set only by an
-    // explicit re-probe today; load-time detection comes with save/load.
+    // Runtime flag — true if the source's file is no longer openable. Flipped by
+    // MediaBinViewModel's on-focus File.Exists pass (both directions — present→missing
+    // and missing→present, where the latter triggers a re-probe) and by the explicit
+    // Relocate re-probe. Load-time detection (on project open) lands with save/load.
     [ObservableProperty]
     private bool isMissing;
 

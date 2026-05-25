@@ -72,6 +72,17 @@ public partial class VideoEditorWindow : Window
         }
     }
 
+    // Forward window activations to the bin VM so it can re-check every imported source
+    // against the filesystem and flip IsMissing on/off. Fires on every alt-tab back into
+    // the window (including the first show — harmless on an empty bin), so a file
+    // renamed/moved behind the editor's back lights up red as soon as focus returns.
+    // See MediaBinViewModel.RefreshMissingState for the scan details.
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        ViewModel.MediaBin.RefreshMissingState();
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)

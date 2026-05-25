@@ -13,8 +13,12 @@ namespace Flicksy.VideoEditor.Controls.Panels;
 /// with an empty-state hint when the project has no imported sources. Files dropped from
 /// Windows Explorer onto the panel surface route through the same
 /// <see cref="MediaBinViewModel.TryImportFiles"/> path so dedupe + probe-failure handling
-/// stay uniform with the Import button. Right-click on a cell offers Reveal in Explorer;
-/// rename / relocate / remove arrive in step 1b.
+/// stay uniform with the Import button. Right-click on a cell offers Rename,
+/// Relocate… (enabled only when the source is missing), Reveal in Explorer, and Remove
+/// (with a cascade-delete confirm if any timeline clips reference the source). Missing
+/// sources are signaled by a red cell border, red name text, and a "?" placeholder in
+/// the thumbnail area. Inline rename uses an in-cell TextBox; this file owns its
+/// commit/cancel/lost-focus handlers.
 /// </summary>
 public partial class MediaPanel : UserControl
 {
@@ -74,5 +78,52 @@ public partial class MediaPanel : UserControl
             current = VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
         }
         return null;
+    }
+
+    // The inline rename TextBox lives inside the cell DataTemplate; these three handlers
+    // are wired by attribute in MediaPanel.xaml. They route through the bin VM's
+    // BeginRename / CommitRename / CancelRename commands — which guard against double-fire
+    // (Enter commits → TextBox collapses → LostFocus fires CommitRename again → IsEditing
+    // is already false → early-return).
+
+    private void OnRenameTextBoxVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        if (e.NewValue is not true) return;
+        // Posting via Dispatcher is more reliable than calling Focus() inline — the
+        // TextBox is mid-template-instantiation when IsVisibleChanged fires, and an
+        // immediate Focus() call can be no-op'd by WPF still finishing the layout pass.
+        tb.Dispatcher.BeginInvoke(() =>
+        {
+            tb.Focus();
+            tb.SelectAll();
+        });
+    }
+
+    private void OnRenameTextBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        if (tb.DataContext is not MediaSourceViewModel entry) return;
+        if (DataContext is not MediaBinViewModel vm) return;
+
+        if (e.Key == Key.Enter)
+        {
+            vm.CommitRenameCommand.Execute(entry);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            vm.CancelRenameCommand.Execute(entry);
+            e.Handled = true;
+        }
+    }
+
+    private void OnRenameTextBoxLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        if (tb.DataContext is not MediaSourceViewModel entry) return;
+        if (DataContext is not MediaBinViewModel vm) return;
+
+        vm.CommitRenameCommand.Execute(entry);
     }
 }
