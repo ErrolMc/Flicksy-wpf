@@ -38,8 +38,12 @@ The unit of content on a `Track`, occupying a half-open interval `[TimelineStart
 _Avoid_: "segment", "block", "item" (collides with `DrawingItem`).
 
 **MediaClip**:
-A `Clip` that references a source video or audio file. Holds `SourcePath`, `SourceIn`, `SourceOut` (in source time), `TimelineStart`, `Speed`, per-clip `Transform` (position/scale/rotate/crop), `FilterChain`, `Volume`. Timeline duration is `(SourceOut - SourceIn) / Speed`.
+A `Clip` that references a `MediaSource` by id. Holds `MediaSourceId`, `SourceIn`, `SourceOut` (in source time), `TimelineStart`, `Speed`, `Streams` (`Video` / `Audio` / `Both`, default `Both`), per-clip `Transform` (position/scale/rotate/crop), `FilterChain`, `Volume`. Timeline duration is `(SourceOut - SourceIn) / Speed`. The underlying file path lives on the `MediaSource`, not the clip — many clips can share one source. `Streams` controls what the compositor renders: dropping a video+audio source on a Video track creates `Streams=Both`; the per-clip **Split audio** command flips a `Streams=Both` clip to `Streams=Video` and adds a paired `Streams=Audio` clip on a freshly-created Audio track named `"<source video track> (Audio)"` (with `" N"` de-collision suffix if the name is already in use). Each split creates its own new track. Video tracks accept `Streams ∈ {Both, Video}` in any mix; Audio tracks accept `Streams=Audio` only.
 _Avoid_: "video clip" (it can be audio-only), "source clip".
+
+**MediaSource**:
+A first-class entity in `Project.MediaSources` representing an imported video/audio file the project knows about. Probed at import via `FFMediaToolkit`. Fields: `Id`, `SourcePath`, `DisplayName` (defaults to filename, user-renameable), `Duration`, `HasVideo`, `HasAudio`, video-only `Width`/`Height`/`SourceFramerate`, audio-only `SampleRate`/`ChannelCount`, and a runtime `IsMissing` flag. The Media bin in the UI is a view over `Project.MediaSources`. `MediaClip`s reference a `MediaSource` by `Id`, so relocating one missing file fixes every clip that used it.
+_Avoid_: "asset", "media item", "import", "bin entry" (the bin is just the UI for the list).
 
 **GraphicsClip**:
 A `Clip` that holds a list of `DrawingItem`s (the existing pen/shape/text items) visible only between `TimelineStart` and `TimelineStart+Duration`. Has a `Transform` like `MediaClip`. The Snip editor's drawings live in a flat list of `DrawingItem`s; the Video editor's drawings live inside a `GraphicsClip`.
