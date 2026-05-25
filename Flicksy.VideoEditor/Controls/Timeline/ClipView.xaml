@@ -2,7 +2,6 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:proj="clr-namespace:Flicksy.VideoEditor.Project"
-             xmlns:conv="clr-namespace:Flicksy.VideoEditor.Converters"
              x:Name="Root"
              Cursor="Hand"
              SnapsToDevicePixels="True">
@@ -22,7 +21,7 @@
                         VerticalAlignment="Top"
                         Height="3"
                         Background="{StaticResource MediaClipAccent}" />
-                <TextBlock Text="{Binding SourcePath, Converter={x:Static conv:FileNameConverter.Instance}}"
+                <TextBlock Text="{Binding Source.DisplayName}"
                            Foreground="{StaticResource ClipLabelBrush}"
                            FontSize="11"
                            FontWeight="SemiBold"

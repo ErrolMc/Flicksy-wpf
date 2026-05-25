@@ -42,7 +42,7 @@ public partial class VideoEditorViewModel : ObservableObject
         Transport = new TransportViewModel(project);
         Timeline = new TimelineViewModel(project, Transport);
         Inspector = new InspectorViewModel();
-        MediaBin = new MediaBinViewModel();
+        MediaBin = new MediaBinViewModel(project);
 
         // Timeline.SelectedClip is the user-facing write side (clip clicks); root's
         // SelectedClip is what every other surface reads (right rail, inspectors).

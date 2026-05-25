@@ -1,0 +1,184 @@
+<UserControl x:Class="Flicksy.VideoEditor.Controls.Panels.MediaPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Flicksy.VideoEditor.Converters"
+             Background="#181818"
+             AllowDrop="True"
+             Drop="OnPanelDrop"
+             DragEnter="OnPanelDragOver"
+             DragOver="OnPanelDragOver"
+             PreviewMouseLeftButtonDown="OnPanelPreviewMouseDown">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <SolidColorBrush x:Key="EmptyTextBrush" Color="#7A7A7A" />
+        <SolidColorBrush x:Key="CellBackgroundBrush" Color="#242424" />
+        <SolidColorBrush x:Key="CellSelectedBrush" Color="#0078D4" />
+        <SolidColorBrush x:Key="CellBorderBrush" Color="#333333" />
+        <SolidColorBrush x:Key="CellLabelBrush" Color="#E6E6E6" />
+        <SolidColorBrush x:Key="CellBadgeBrush" Color="#000000" />
+        <SolidColorBrush x:Key="CellBadgeForegroundBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ToolbarBackgroundBrush" Color="#1F1F1F" />
+        <SolidColorBrush x:Key="ToolbarBorderBrush" Color="#3DFFFFFF" />
+
+        <Style x:Key="ImportButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#0078D4" />
+            <Setter Property="BorderBrush" Value="#0078D4" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#1F8DEA" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#005FA8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Cell container: 120x100 with selection/hover border. Tag pipes the bin VM in
+             so the ContextMenu (separate visual tree) can resolve RevealCommand via
+             PlacementTarget.Tag.RevealCommand. -->
+        <Style x:Key="MediaCellItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Tag"
+                    Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+            <Setter Property="ContextMenu">
+                <Setter.Value>
+                    <ContextMenu>
+                        <MenuItem Header="Reveal in Explorer"
+                                  Command="{Binding PlacementTarget.Tag.RevealCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    </ContextMenu>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="CellBorder"
+                                Width="120" Height="100"
+                                Background="{StaticResource CellBackgroundBrush}"
+                                BorderBrush="{StaticResource CellBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CellBorder" Property="BorderBrush" Value="#5A5A5A" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="CellBorder" Property="BorderBrush" Value="{StaticResource CellSelectedBrush}" />
+                                <Setter TargetName="CellBorder" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate x:Key="MediaCellTemplate">
+            <Grid Margin="4">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Thumbnail / glyph area. Uniform-stretch keeps source aspect; missing
+                     thumbnail simply renders the cell background through. -->
+                <Border Grid.Row="0" ClipToBounds="True">
+                    <Grid>
+                        <Image Source="{Binding Thumbnail}"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                        <!-- Duration badge — bottom-right of thumbnail area. -->
+                        <Border HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Margin="0,0,2,2"
+                                Padding="4,1"
+                                CornerRadius="2"
+                                Background="{StaticResource CellBadgeBrush}"
+                                Opacity="0.75">
+                            <TextBlock Text="{Binding Source.Duration, Converter={x:Static conv:DurationConverter.Instance}}"
+                                       Foreground="{StaticResource CellBadgeForegroundBrush}"
+                                       FontSize="10" />
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <TextBlock Grid.Row="1"
+                           Text="{Binding Source.DisplayName}"
+                           Foreground="{StaticResource CellLabelBrush}"
+                           FontSize="11"
+                           Margin="0,2,0,0"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding Source.SourcePath}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top"
+                Background="{StaticResource ToolbarBackgroundBrush}"
+                BorderBrush="{StaticResource ToolbarBorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8,6">
+            <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource ImportButtonStyle}"
+                        Content="Import…"
+                        Command="{Binding ImportCommand}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Body: empty-state hint OR the bin grid. Always-visible Import button stays on
+             the toolbar above either branch. -->
+        <Grid>
+            <TextBlock Text="No media imported"
+                       Foreground="{StaticResource EmptyTextBrush}"
+                       FontSize="13"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Visibility="{Binding HasEntries, Converter={StaticResource BoolToVis}}">
+                <ListBox x:Name="EntriesList"
+                         ItemsSource="{Binding MediaSources}"
+                         SelectedItem="{Binding SelectedSource, Mode=TwoWay}"
+                         ItemTemplate="{StaticResource MediaCellTemplate}"
+                         ItemContainerStyle="{StaticResource MediaCellItemStyle}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                </ListBox>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

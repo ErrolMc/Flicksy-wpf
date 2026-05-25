@@ -157,7 +157,8 @@
             <Grid Grid.Column="1"
                   Background="{StaticResource PanelBackgroundBrush}"
                   Visibility="{Binding IsLeftPanelOpen, Converter={StaticResource BoolToVis}}">
-                <panels:MediaPanel       Visibility="{Binding CurrentLeftTab, Converter={StaticResource EnumToVis}, ConverterParameter={x:Static vm:LeftRailTab.Media}}" />
+                <panels:MediaPanel       DataContext="{Binding MediaBin}"
+                                         Visibility="{Binding CurrentLeftTab, Converter={StaticResource EnumToVis}, ConverterParameter={x:Static vm:LeftRailTab.Media}}" />
                 <panels:TextPanel        Visibility="{Binding CurrentLeftTab, Converter={StaticResource EnumToVis}, ConverterParameter={x:Static vm:LeftRailTab.Text}}" />
                 <panels:ShapesPanel      Visibility="{Binding CurrentLeftTab, Converter={StaticResource EnumToVis}, ConverterParameter={x:Static vm:LeftRailTab.Shapes}}" />
                 <panels:PenPanel         Visibility="{Binding CurrentLeftTab, Converter={StaticResource EnumToVis}, ConverterParameter={x:Static vm:LeftRailTab.Pen}}" />

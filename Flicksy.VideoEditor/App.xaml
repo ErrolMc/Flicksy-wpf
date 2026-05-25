@@ -103,6 +103,82 @@
             </Setter>
         </Style>
 
+        <!-- App-wide dark context menus. Implicit so every ContextMenu/MenuItem/Separator
+             in the app picks the dark theme up without per-call-site styling — the bin's
+             Reveal menu today, the ClipView's Split-audio menu in #9 step 2, the bin's
+             Rename/Relocate/Remove in 1b, etc. Defaults are aero-light and ugly here.
+             Template is intentionally minimal: no submenu arrow, no icon column, no
+             input-gesture text. Add those back when a menu actually needs them. -->
+        <SolidColorBrush x:Key="MenuBackgroundBrush" Color="#262626" />
+        <SolidColorBrush x:Key="MenuBorderBrush" Color="#3D3D3D" />
+        <SolidColorBrush x:Key="MenuForegroundBrush" Color="#E6E6E6" />
+        <SolidColorBrush x:Key="MenuForegroundDisabledBrush" Color="#6E6E6E" />
+        <SolidColorBrush x:Key="MenuHighlightBrush" Color="#3A3A3A" />
+        <SolidColorBrush x:Key="MenuSeparatorBrush" Color="#3D3D3D" />
+
+        <Style TargetType="{x:Type ContextMenu}">
+            <Setter Property="Background" Value="{StaticResource MenuBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource MenuForegroundBrush}" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="HasDropShadow" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ContextMenu}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <StackPanel IsItemsHost="True"
+                                        KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type MenuItem}">
+            <Setter Property="Foreground" Value="{StaticResource MenuForegroundBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="14,5" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type MenuItem}">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="2">
+                            <ContentPresenter ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource MenuHighlightBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource MenuForegroundDisabledBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type Separator}" x:Key="{x:Static MenuItem.SeparatorStyleKey}">
+            <Setter Property="Margin" Value="4,3" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Separator}">
+                        <Border Height="1" Background="{StaticResource MenuSeparatorBrush}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Implicit ScrollBar style — picks up every ScrollBar without an x:Key match. -->
         <Style TargetType="{x:Type ScrollBar}">
             <Setter Property="Background" Value="{StaticResource ScrollBarTrackBrush}" />

@@ -17,6 +17,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Flicksy.Drawing\Flicksy.Drawing.csproj" />
+    <ProjectReference Include="..\Flicksy.Icons\Flicksy.Icons.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Flicksy.Icons.Properties.Resources" Alias="Images" />
   </ItemGroup>
 
 </Project>
