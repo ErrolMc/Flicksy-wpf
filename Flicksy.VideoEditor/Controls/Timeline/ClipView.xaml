@@ -6,6 +6,8 @@
              Cursor="Hand"
              SnapsToDevicePixels="True">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
         <SolidColorBrush x:Key="MediaClipFill" Color="#1F4F7A" />
         <SolidColorBrush x:Key="MediaClipAccent" Color="#5BA5DE" />
         <SolidColorBrush x:Key="GraphicsClipFill" Color="#5C3A8A" />
@@ -13,21 +15,53 @@
         <SolidColorBrush x:Key="ClipBorderBrush" Color="#000000" />
         <SolidColorBrush x:Key="ClipSelectedBrush" Color="#FFCB3D" />
         <SolidColorBrush x:Key="ClipLabelBrush" Color="#FFFFFF" />
+        <!-- Broken-clip palette: red fill + brighter red accent. Triggered by IsBroken on
+             MediaClip (Source.IsMissing, SourceOut > Source.Duration, or Streams asking
+             for a stream the source doesn't have). -->
+        <SolidColorBrush x:Key="MediaClipBrokenFill" Color="#7A1F1F" />
+        <SolidColorBrush x:Key="MediaClipBrokenAccent" Color="#D63A3A" />
 
-        <!-- MediaClip: blue, accent stripe + filename. -->
+        <!-- MediaClip: blue, accent stripe + filename. IsBroken flips fill + accent to the
+             red palette without touching the rest of the template. Inline rename swaps the
+             TextBlock for a TextBox while IsEditing (mirrors the bin's rename pattern). -->
         <DataTemplate DataType="{x:Type proj:MediaClip}">
-            <Grid Background="{StaticResource MediaClipFill}">
-                <Border HorizontalAlignment="Stretch"
+            <Grid x:Name="ClipBody" Background="{StaticResource MediaClipFill}">
+                <Border x:Name="AccentStripe"
+                        HorizontalAlignment="Stretch"
                         VerticalAlignment="Top"
                         Height="3"
                         Background="{StaticResource MediaClipAccent}" />
-                <TextBlock Text="{Binding Source.DisplayName}"
-                           Foreground="{StaticResource ClipLabelBrush}"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Margin="6,6,6,0"
-                           TextTrimming="CharacterEllipsis" />
+                <Grid Margin="6,6,6,0" VerticalAlignment="Top">
+                    <TextBlock Text="{Binding DisplayName}"
+                               Foreground="{StaticResource ClipLabelBrush}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBox Text="{Binding EditingName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="11"
+                             Padding="2,0"
+                             Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"
+                             IsVisibleChanged="OnRenameTextBoxVisibleChanged"
+                             KeyDown="OnRenameTextBoxKeyDown"
+                             LostFocus="OnRenameTextBoxLostFocus" />
+                </Grid>
             </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsBroken}" Value="True">
+                    <Setter TargetName="ClipBody" Property="Background" Value="{StaticResource MediaClipBrokenFill}" />
+                    <Setter TargetName="AccentStripe" Property="Background" Value="{StaticResource MediaClipBrokenAccent}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
 
         <!-- GraphicsClip: purple, accent stripe + label. -->
@@ -53,7 +87,24 @@
             BorderThickness="1"
             CornerRadius="2"
             ClipToBounds="True"
-            MouseLeftButtonDown="OnClipMouseDown">
+            MouseLeftButtonDown="OnClipMouseDown"
+            PreviewMouseRightButtonDown="OnClipRightButtonDown"
+            ContextMenuOpening="OnContextMenuOpening">
+        <Border.ContextMenu>
+            <!-- Rename + Split audio. ContextMenuOpening in code-behind gates each item to
+                 the clip subtype it makes sense for (Rename enabled iff MediaClip; Split
+                 audio enabled iff MediaClip with Streams=Both — visible-but-disabled
+                 otherwise so users discover them). -->
+            <ContextMenu>
+                <MenuItem x:Name="RenameMenuItem"
+                          Header="Rename"
+                          Click="OnRenameClick" />
+                <Separator />
+                <MenuItem x:Name="SplitAudioMenuItem"
+                          Header="Split audio"
+                          Click="OnSplitAudioClick" />
+            </ContextMenu>
+        </Border.ContextMenu>
         <ContentControl Content="{Binding}" IsTabStop="False" />
     </Border>
 </UserControl>

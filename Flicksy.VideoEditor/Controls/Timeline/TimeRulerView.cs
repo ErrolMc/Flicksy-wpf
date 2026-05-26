@@ -40,7 +40,9 @@ public sealed class TimeRulerView : FrameworkElement
     };
 
     private TimelineViewModel? _viewModel;
+    private TransportViewModel? _transport;
     private PropertyChangedEventHandler? _vmHandler;
+    private PropertyChangedEventHandler? _transportHandler;
 
     public TimeRulerView()
     {
@@ -83,12 +85,22 @@ public sealed class TimeRulerView : FrameworkElement
         {
             _viewModel.PropertyChanged -= _vmHandler;
         }
+        if (_transport is not null && _transportHandler is not null)
+        {
+            _transport.PropertyChanged -= _transportHandler;
+        }
 
         _viewModel = e.NewValue as TimelineViewModel;
+        _transport = _viewModel?.Transport;
         if (_viewModel is not null)
         {
             _vmHandler = OnViewModelPropertyChanged;
             _viewModel.PropertyChanged += _vmHandler;
+        }
+        if (_transport is not null)
+        {
+            _transportHandler = OnTransportPropertyChanged;
+            _transport.PropertyChanged += _transportHandler;
         }
 
         InvalidateMeasure();
@@ -98,6 +110,19 @@ public sealed class TimeRulerView : FrameworkElement
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(TimelineViewModel.PixelsPerFrame))
+        {
+            InvalidateMeasure();
+            InvalidateVisual();
+        }
+    }
+
+    private void OnTransportPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // TotalFrames drives MeasureContentWidth — clip add/remove on any track flips it
+        // through TransportViewModel's project-mutation subscription. Without this the
+        // ruler stays at its construction-time width and clicks past the original extent
+        // can't move the playhead.
+        if (e.PropertyName == nameof(TransportViewModel.TotalFrames))
         {
             InvalidateMeasure();
             InvalidateVisual();

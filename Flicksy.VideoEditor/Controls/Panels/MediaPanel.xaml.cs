@@ -1,7 +1,10 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using Flicksy.VideoEditor.Project;
 using Flicksy.VideoEditor.ViewModels;
 
 namespace Flicksy.VideoEditor.Controls.Panels;
@@ -22,6 +25,9 @@ namespace Flicksy.VideoEditor.Controls.Panels;
 /// </summary>
 public partial class MediaPanel : UserControl
 {
+    private Point _dragOriginScreen;
+    private MediaSourceViewModel? _pendingDragEntry;
+
     public MediaPanel()
     {
         InitializeComponent();
@@ -58,15 +64,113 @@ public partial class MediaPanel : UserControl
 
     // Click anywhere inside the panel that isn't a cell clears the bin selection
     // (toolbar, empty grid area, scrollbar, padding around cells). Clicks on a cell
-    // bubble through unchanged — the ListBox handles the re-select naturally.
+    // are also where bin-to-timeline drag originates — record the cell + screen point
+    // and let OnPanelPreviewMouseMove decide whether the cursor has moved past the
+    // system drag threshold before kicking off DoDragDrop. Missing sources skip drag
+    // initiation (no payload — the drop matrix would refuse them anyway).
     private void OnPanelPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (DataContext is not MediaBinViewModel vm) return;
-        if (vm.SelectedSource is null) return;
         if (e.OriginalSource is not DependencyObject d) return;
-        if (FindAncestor<ListBoxItem>(d) is not null) return;
 
-        vm.SelectedSource = null;
+        var item = FindAncestor<ListBoxItem>(d);
+        if (item is null)
+        {
+            if (vm.SelectedSource is not null) vm.SelectedSource = null;
+            return;
+        }
+
+        if (item.DataContext is MediaSourceViewModel entry && !entry.Source.IsMissing)
+        {
+            _pendingDragEntry = entry;
+            _dragOriginScreen = e.GetPosition(this);
+        }
+    }
+
+    private void OnPanelPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_pendingDragEntry is null) return;
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            _pendingDragEntry = null;
+            return;
+        }
+
+        var current = e.GetPosition(this);
+        if (Math.Abs(current.X - _dragOriginScreen.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(current.Y - _dragOriginScreen.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var entry = _pendingDragEntry;
+        _pendingDragEntry = null;
+        StartDrag(entry);
+    }
+
+    private void OnPanelMouseLeave(object sender, MouseEventArgs e)
+    {
+        _pendingDragEntry = null;
+    }
+
+    // DoDragDrop blocks the message loop until the drag completes. The cursor adorner
+    // is added to the window's AdornerLayer before the call so it survives the panel-to-
+    // timeline boundary, and PreviewDragOver on the window pumps cursor updates into it.
+    // The finally block guarantees the adorner + handler come off even if the drag is
+    // cancelled mid-flight (Esc, source removal, etc.).
+    private void StartDrag(MediaSourceViewModel entry)
+    {
+        var window = Window.GetWindow(this);
+        var content = window?.Content as UIElement;
+        var layer = content is not null ? AdornerLayer.GetAdornerLayer(content) : null;
+
+        DragThumbnailAdorner? adorner = null;
+        DragEventHandler? onPreviewDragOver = null;
+        QueryContinueDragEventHandler? onQueryContinue = null;
+
+        if (layer is not null && content is not null && window is not null)
+        {
+            adorner = new DragThumbnailAdorner(content, entry.Thumbnail);
+            layer.Add(adorner);
+
+            onPreviewDragOver = (_, ev) => adorner.UpdatePosition(ev.GetPosition(content));
+            window.PreviewDragOver += onPreviewDragOver;
+
+            // GiveFeedback only fires on the drag source — QueryContinueDrag fires on
+            // the source during the whole drag and gives us a heartbeat for the cursor
+            // position even when the cursor leaves the timeline (over the title bar,
+            // outside the window, etc.).
+            onQueryContinue = (_, ev) =>
+            {
+                if (Mouse.PrimaryDevice.DirectlyOver is IInputElement el)
+                {
+                    var p = Mouse.GetPosition(content);
+                    adorner.UpdatePosition(p);
+                }
+            };
+            AddHandler(QueryContinueDragEvent, onQueryContinue, handledEventsToo: true);
+        }
+
+        var data = new DataObject(typeof(MediaSource), entry.Source);
+        try
+        {
+            DragDrop.DoDragDrop(this, data, DragDropEffects.Copy);
+        }
+        finally
+        {
+            if (adorner is not null && layer is not null)
+            {
+                layer.Remove(adorner);
+            }
+            if (window is not null && onPreviewDragOver is not null)
+            {
+                window.PreviewDragOver -= onPreviewDragOver;
+            }
+            if (onQueryContinue is not null)
+            {
+                RemoveHandler(QueryContinueDragEvent, onQueryContinue);
+            }
+        }
     }
 
     private static T? FindAncestor<T>(DependencyObject start) where T : DependencyObject
@@ -125,5 +229,65 @@ public partial class MediaPanel : UserControl
         if (DataContext is not MediaBinViewModel vm) return;
 
         vm.CommitRenameCommand.Execute(entry);
+    }
+}
+
+/// <summary>
+/// Cursor-attached drag preview painted on the window's <see cref="AdornerLayer"/>. Drawn
+/// at 50% opacity and ~80 px wide preserving the source thumbnail's aspect — the lane's
+/// own ghost rect (see <see cref="Timeline.GhostClipAdorner"/>) tells the user where the
+/// clip would land, while this one keeps the dragged identity attached to the cursor as
+/// it crosses the panel/timeline boundary. Audio sources (and any source without a cached
+/// thumbnail) render as a small placeholder rect so the cursor still has a follower.
+/// </summary>
+internal sealed class DragThumbnailAdorner : Adorner
+{
+    private const double TargetWidth = 80;
+    private const double PlaceholderHeight = 60;
+    private static readonly Brush PlaceholderFill = CreateFrozenBrush(Color.FromArgb(0x80, 0x55, 0x55, 0x55));
+    private static readonly Vector CursorOffset = new(14, 14);
+
+    private readonly ImageSource? _thumbnail;
+    private Point _position;
+
+    public DragThumbnailAdorner(UIElement adornedElement, ImageSource? thumbnail) : base(adornedElement)
+    {
+        _thumbnail = thumbnail;
+        IsHitTestVisible = false;
+    }
+
+    public void UpdatePosition(Point position)
+    {
+        _position = position;
+        InvalidateVisual();
+    }
+
+    protected override void OnRender(DrawingContext dc)
+    {
+        var origin = _position + CursorOffset;
+        double width = TargetWidth;
+        double height = PlaceholderHeight;
+        if (_thumbnail is not null && _thumbnail.Width > 0 && _thumbnail.Height > 0)
+        {
+            height = width * _thumbnail.Height / _thumbnail.Width;
+        }
+        var rect = new Rect(origin.X, origin.Y, width, height);
+        dc.PushOpacity(0.5);
+        if (_thumbnail is not null)
+        {
+            dc.DrawImage(_thumbnail, rect);
+        }
+        else
+        {
+            dc.DrawRectangle(PlaceholderFill, null, rect);
+        }
+        dc.Pop();
+    }
+
+    private static SolidColorBrush CreateFrozenBrush(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 }

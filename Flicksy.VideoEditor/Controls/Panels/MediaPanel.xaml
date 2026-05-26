@@ -7,7 +7,9 @@
              Drop="OnPanelDrop"
              DragEnter="OnPanelDragOver"
              DragOver="OnPanelDragOver"
-             PreviewMouseLeftButtonDown="OnPanelPreviewMouseDown">
+             PreviewMouseLeftButtonDown="OnPanelPreviewMouseDown"
+             PreviewMouseMove="OnPanelPreviewMouseMove"
+             MouseLeave="OnPanelMouseLeave">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
 

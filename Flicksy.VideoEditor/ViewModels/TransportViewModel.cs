@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Flicksy.VideoEditor.Project;
 
 namespace Flicksy.VideoEditor.ViewModels;
 
@@ -8,12 +11,15 @@ namespace Flicksy.VideoEditor.ViewModels;
 /// State and commands for the Transport bar: the integer-frame <see cref="Playhead"/>,
 /// the <see cref="IsPlaying"/> flag, and the play/pause + frame-step commands the
 /// TransportView binds to. Timecode strings are computed off <see cref="Playhead"/> /
-/// <see cref="TotalFrames"/> at the project framerate. All commands are no-op stubs in
-/// this slice — real playback wiring (the compositor driving frame presentation) lands
-/// in #11.
+/// <see cref="TotalFrames"/> at the project framerate. <see cref="TotalFrames"/> tracks
+/// the project's clip set live (re-derived when tracks or clips mutate) so the ruler,
+/// lane content width, and seek clamp all stay in step with bin-to-timeline drops and
+/// Split-audio track additions. Real playback wiring (the compositor driving frame
+/// presentation) lands in #11.
 /// </summary>
 public partial class TransportViewModel : ObservableObject
 {
+    private readonly Project.Project _project;
     private readonly int _framerate;
 
     [ObservableProperty]
@@ -26,19 +32,23 @@ public partial class TransportViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(PlayPauseLabel))]
     private bool isPlaying;
 
+    // Live-computed from the project's clip set. The view layer (TimeRulerView,
+    // ClipsLaneView, PlayheadView) listens for this property change and re-measures so
+    // the timeline grows when a clip is dropped and shrinks when one is removed.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TotalTimecode))]
+    private int totalFrames;
+
     public TransportViewModel(Project.Project project)
     {
+        _project = project;
         _framerate = project.Settings.Framerate;
+
+        SubscribeProjectMutations();
         TotalFrames = ComputeTotalFrames(project);
-        TotalTimecode = FormatTimecode(TotalFrames, _framerate);
     }
 
-    // Snapshotted at construction — the document model doesn't yet expose mutation events
-    // the VM could subscribe to (media bin lands in #9, timeline editing in #12), so a
-    // snapshot is sufficient for this slice.
-    public int TotalFrames { get; }
-
-    public string TotalTimecode { get; }
+    public string TotalTimecode => FormatTimecode(TotalFrames, _framerate);
 
     public string CurrentTimecode => FormatTimecode(Playhead, _framerate);
 
@@ -62,6 +72,67 @@ public partial class TransportViewModel : ObservableObject
         Playhead = TotalFrames > 0
             ? Math.Min(TotalFrames, Playhead + 1)
             : Playhead + 1;
+    }
+
+    private void SubscribeProjectMutations()
+    {
+        _project.Tracks.CollectionChanged += OnTracksCollectionChanged;
+        foreach (var track in _project.Tracks)
+        {
+            SubscribeTrack(track);
+        }
+    }
+
+    private void SubscribeTrack(Track track)
+    {
+        track.Clips.CollectionChanged += OnTrackClipsChanged;
+        foreach (var clip in track.Clips)
+        {
+            clip.PropertyChanged += OnClipPropertyChanged;
+        }
+    }
+
+    private void UnsubscribeTrack(Track track)
+    {
+        track.Clips.CollectionChanged -= OnTrackClipsChanged;
+        foreach (var clip in track.Clips)
+        {
+            clip.PropertyChanged -= OnClipPropertyChanged;
+        }
+    }
+
+    private void OnTracksCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (Track t in e.OldItems) UnsubscribeTrack(t);
+        }
+        if (e.NewItems is not null)
+        {
+            foreach (Track t in e.NewItems) SubscribeTrack(t);
+        }
+        TotalFrames = ComputeTotalFrames(_project);
+    }
+
+    private void OnTrackClipsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (Clip c in e.OldItems) c.PropertyChanged -= OnClipPropertyChanged;
+        }
+        if (e.NewItems is not null)
+        {
+            foreach (Clip c in e.NewItems) c.PropertyChanged += OnClipPropertyChanged;
+        }
+        TotalFrames = ComputeTotalFrames(_project);
+    }
+
+    private void OnClipPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Clip.TimelineStart) || e.PropertyName == nameof(Clip.Duration))
+        {
+            TotalFrames = ComputeTotalFrames(_project);
+        }
     }
 
     private static int ComputeTotalFrames(Project.Project project)

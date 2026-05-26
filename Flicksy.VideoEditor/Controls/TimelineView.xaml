@@ -6,23 +6,6 @@
     <UserControl.Resources>
         <SolidColorBrush x:Key="TimelineRulerHeaderBg" Color="#1F1F1F" />
         <SolidColorBrush x:Key="TimelineRulerHeaderBorder" Color="#333333" />
-
-        <!-- Per-track empty-track collapse trigger, applied to both the header and lane
-             ItemTemplates so the two ItemsControls produce the same visible row set. -->
-        <Style x:Key="HideWhenEmptyHeaderStyle" TargetType="timeline:TrackHeaderView">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Clips.Count}" Value="0">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="HideWhenEmptyLaneStyle" TargetType="timeline:ClipsLaneView">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Clips.Count}" Value="0">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
     </UserControl.Resources>
 
     <!-- Pinned-headers layout: the header column lives in its own ScrollViewer outside
@@ -83,7 +66,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <timeline:TrackHeaderView Style="{StaticResource HideWhenEmptyHeaderStyle}" />
+                            <timeline:TrackHeaderView />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -105,8 +88,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <timeline:ClipsLaneView Style="{StaticResource HideWhenEmptyLaneStyle}"
-                                                        Track="{Binding}"
+                                <timeline:ClipsLaneView Track="{Binding}"
                                                         Timeline="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" />
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

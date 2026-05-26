@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Flicksy.VideoEditor.Project;
 
@@ -16,6 +18,11 @@ public partial class TimelineViewModel : ObservableObject
 {
     public const double MinPixelsPerFrame = 0.25;
     public const double MaxPixelsPerFrame = 60.0;
+
+    // Snap pull radius in screen pixels, applied to the dragged clip's start edge against
+    // every clip edge on the target track plus the playhead. Tightens at high zoom and
+    // loosens at low zoom because it's converted to frames via PixelsPerFrame at call time.
+    private const double SnapRadiusPixels = 6.0;
 
     [ObservableProperty]
     private double pixelsPerFrame = 6.0;
@@ -62,5 +69,172 @@ public partial class TimelineViewModel : ObservableObject
     {
         if (PixelsPerFrame <= 0) return;
         SeekToFrame((int)Math.Round(laneX / PixelsPerFrame));
+    }
+
+    /// <summary>
+    /// Resolves a desired landing frame for a clip of <paramref name="draggedDuration"/>
+    /// frames being placed on <paramref name="targetTrack"/>. Two-stage:
+    /// (1) When <paramref name="altHeld"/> is false, snap the start edge to the nearest
+    /// candidate within <see cref="SnapRadiusPixels"/> (every clip's start + end on the
+    /// target track, plus <see cref="TransportViewModel.Playhead"/>). Alt bypasses this
+    /// stage.
+    /// (2) Enforce the non-destructive overlap rule: if the resulting [start, start+duration)
+    /// rect intersects any existing clip on the track, walk the start to the closest free
+    /// gap that fits. Existing clips are never shifted. This stage runs regardless of Alt —
+    /// the timeline always has non-overlapping clips per track.
+    /// Used by bin-to-timeline drops in <see cref="Controls.Timeline.ClipsLaneView"/>;
+    /// future clip-move-on-timeline operations will reuse the same helper.
+    /// </summary>
+    public int Snap(int landingFrame, Track targetTrack, int draggedDuration, bool altHeld)
+    {
+        var frame = Math.Max(0, landingFrame);
+
+        if (!altHeld && PixelsPerFrame > 0)
+        {
+            frame = ApplyEdgeSnap(frame, targetTrack);
+        }
+
+        frame = WalkToFreeGap(frame, targetTrack, Math.Max(0, draggedDuration));
+        return Math.Max(0, frame);
+    }
+
+    private int ApplyEdgeSnap(int frame, Track targetTrack)
+    {
+        var snapRadiusFrames = SnapRadiusPixels / PixelsPerFrame;
+        var best = frame;
+        var bestDelta = snapRadiusFrames;
+
+        void Consider(int candidate)
+        {
+            var delta = Math.Abs(candidate - frame);
+            if (delta < bestDelta)
+            {
+                bestDelta = delta;
+                best = candidate;
+            }
+        }
+
+        foreach (var clip in targetTrack.Clips)
+        {
+            Consider(clip.TimelineStart);
+            Consider(clip.TimelineStart + clip.Duration);
+        }
+        Consider(Transport.Playhead);
+
+        return best;
+    }
+
+    // Build the sorted list of occupied [start, end) intervals on the track, then either
+    // accept the desired placement (if it fits) or pick the gap-clamped placement closest
+    // to it. The tail gap is unbounded, so it's always a valid fallback at occupied[^1].End.
+    private static int WalkToFreeGap(int desiredStart, Track targetTrack, int draggedDuration)
+    {
+        if (draggedDuration <= 0 || targetTrack.Clips.Count == 0)
+        {
+            return Math.Max(0, desiredStart);
+        }
+
+        var occupied = targetTrack.Clips
+            .Select(c => (Start: c.TimelineStart, End: c.TimelineStart + Math.Max(1, c.Duration)))
+            .OrderBy(i => i.Start)
+            .ToList();
+
+        var desiredEnd = desiredStart + draggedDuration;
+        var overlaps = occupied.Any(i => desiredStart < i.End && i.Start < desiredEnd);
+        if (!overlaps)
+        {
+            return Math.Max(0, desiredStart);
+        }
+
+        var candidates = new List<int>();
+
+        var leadEnd = occupied[0].Start;
+        if (leadEnd >= draggedDuration)
+        {
+            var maxPlacement = leadEnd - draggedDuration;
+            candidates.Add(Math.Clamp(desiredStart, 0, maxPlacement));
+        }
+
+        for (var i = 0; i < occupied.Count - 1; i++)
+        {
+            var gapStart = occupied[i].End;
+            var gapEnd = occupied[i + 1].Start;
+            if (gapEnd - gapStart >= draggedDuration)
+            {
+                var maxPlacement = gapEnd - draggedDuration;
+                candidates.Add(Math.Clamp(desiredStart, gapStart, maxPlacement));
+            }
+        }
+
+        // Tail gap is unbounded — guarantees a valid placement always exists.
+        var tailStart = occupied[^1].End;
+        candidates.Add(Math.Max(tailStart, desiredStart));
+
+        return candidates.OrderBy(c => Math.Abs(c - desiredStart)).First();
+    }
+
+    /// <summary>
+    /// Detaches the audio stream of a <see cref="ClipStreams.Both"/> <see cref="MediaClip"/>
+    /// onto a freshly-appended audio track. No-op for any other clip shape (the menu item
+    /// is greyed but still invokes through the visible-but-disabled pattern). The new track
+    /// is named "Audio N" with N starting at 2 — the default "Audio" track from
+    /// <see cref="Project.Project.CreateEmpty"/> is never reused, so split-off tracks pile up
+    /// below the originals with predictable sequential numbers. The paired clip mirrors the
+    /// source clip's <see cref="MediaClip.TimelineStart"/> / <see cref="MediaClip.SourceIn"/>
+    /// / <see cref="MediaClip.SourceOut"/> / <see cref="MediaClip.MediaSourceId"/> but with
+    /// <see cref="ClipStreams.Audio"/>; <see cref="MediaClip.DisplayName"/> then renders it
+    /// as "&lt;source&gt; (Audio)" on the timeline so users can tell the audio half from the
+    /// video half without inspecting the track. Always creates a new track — never reuses
+    /// an existing audio track. Clips remain unlinked after split (they move independently).
+    /// </summary>
+    public void SplitAudio(MediaClip clip)
+    {
+        if (clip.Streams != ClipStreams.Both) return;
+
+        Track? sourceTrack = null;
+        foreach (var track in Project.Tracks)
+        {
+            if (track.Clips.Contains(clip))
+            {
+                sourceTrack = track;
+                break;
+            }
+        }
+        if (sourceTrack is null) return;
+
+        // Resolve the source by id (per ADR 0003: never trust the denormalized Source ref).
+        // Fallback to the local ref so a clip wired before id-lookup works (e.g. tests).
+        var source = Project.MediaSources.FirstOrDefault(s => s.Id == clip.MediaSourceId)
+                     ?? clip.Source;
+
+        // Walk Audio 2, Audio 3, … picking the first name not already taken. Starts at 2
+        // by convention — the bare "Audio" track is the default empty one and is never
+        // overwritten even if the user has renamed it away.
+        var n = 2;
+        string trackName;
+        do
+        {
+            trackName = $"Audio {n}";
+            n++;
+        } while (Project.Tracks.Any(t => string.Equals(t.Name, trackName, StringComparison.Ordinal)));
+
+        // No literal Name stamp — MediaClip.DisplayName auto-derives "<source> (Audio)"
+        // from the audio-half shape (Streams=Audio over a HasVideo source), so the label
+        // tracks bin renames of the source. The user can override that with the rename
+        // menu; if they do, the override freezes.
+        var audioTrack = new Track { Kind = TrackKind.Audio, Name = trackName };
+        audioTrack.Clips.Add(new MediaClip
+        {
+            MediaSourceId = clip.MediaSourceId,
+            Source = source,
+            SourceIn = clip.SourceIn,
+            SourceOut = clip.SourceOut,
+            Streams = ClipStreams.Audio,
+            Framerate = clip.Framerate,
+            TimelineStart = clip.TimelineStart,
+        });
+
+        Project.Tracks.Add(audioTrack);
+        clip.Streams = ClipStreams.Video;
     }
 }

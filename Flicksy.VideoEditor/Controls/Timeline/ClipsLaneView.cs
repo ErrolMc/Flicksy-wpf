@@ -4,6 +4,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using Flicksy.VideoEditor.Project;
 using Flicksy.VideoEditor.ViewModels;
@@ -27,6 +28,11 @@ public sealed class ClipsLaneView : Canvas
     private const double ClipVerticalPadding = 4;
     private const double MinClipWidth = 2;
 
+    // Two frozen brushes for cheap per-frame swaps during drag. Refused state tints the
+    // lane red so the user sees the no-drop target without depending only on the cursor.
+    private static readonly SolidColorBrush DefaultLaneBackground = CreateFrozenBrush(0x14, 0x14, 0x14);
+    private static readonly SolidColorBrush RefusedLaneBackground = CreateFrozenBrush(0x32, 0x14, 0x14);
+
     public static readonly DependencyProperty TrackProperty = DependencyProperty.Register(
         nameof(Track),
         typeof(Track),
@@ -42,17 +48,34 @@ public sealed class ClipsLaneView : Canvas
     private readonly Dictionary<Clip, ClipView> _clipViews = new();
     private readonly PropertyChangedEventHandler _clipHandler;
     private readonly PropertyChangedEventHandler _timelineHandler;
+    private readonly PropertyChangedEventHandler _transportHandler;
     private readonly NotifyCollectionChangedEventHandler _clipsChangedHandler;
+    private TransportViewModel? _subscribedTransport;
+    private GhostClipAdorner? _ghostAdorner;
 
     public ClipsLaneView()
     {
-        Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14));
+        Background = DefaultLaneBackground;
         Height = TrackHeight;
         ClipToBounds = false;
 
         _clipHandler = OnClipPropertyChanged;
         _timelineHandler = OnTimelinePropertyChanged;
+        _transportHandler = OnTransportPropertyChanged;
         _clipsChangedHandler = OnClipsCollectionChanged;
+
+        AllowDrop = true;
+        DragEnter += OnDragEnter;
+        DragOver += OnDragOver;
+        DragLeave += OnDragLeave;
+        Drop += OnDrop;
+    }
+
+    private static SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
     }
 
     public Track? Track
@@ -96,9 +119,18 @@ public sealed class ClipsLaneView : Canvas
         {
             oldVm.PropertyChanged -= _timelineHandler;
         }
+        if (_subscribedTransport is not null)
+        {
+            _subscribedTransport.PropertyChanged -= _transportHandler;
+        }
         if (newVm is not null)
         {
             newVm.PropertyChanged += _timelineHandler;
+        }
+        _subscribedTransport = newVm?.Transport;
+        if (_subscribedTransport is not null)
+        {
+            _subscribedTransport.PropertyChanged += _transportHandler;
         }
         UpdateAllLayouts();
         UpdateAllSelections();
@@ -116,6 +148,17 @@ public sealed class ClipsLaneView : Canvas
             case nameof(TimelineViewModel.SelectedClip):
                 UpdateAllSelections();
                 break;
+        }
+    }
+
+    private void OnTransportPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // ComputeContentWidth multiplies TotalFrames by PixelsPerFrame; when a clip is
+        // dropped (or removed) anywhere in the project the lane needs to re-measure so
+        // the host ScrollViewer learns the new scrollable extent.
+        if (e.PropertyName == nameof(TransportViewModel.TotalFrames))
+        {
+            InvalidateMeasure();
         }
     }
 
@@ -212,5 +255,227 @@ public sealed class ClipsLaneView : Canvas
         if (Timeline is null) return 0;
         var totalFrames = Math.Max(Timeline.Transport.TotalFrames, 1);
         return totalFrames * Timeline.PixelsPerFrame;
+    }
+
+    private void OnDragEnter(object sender, DragEventArgs e) => UpdateDragOperation(e);
+
+    private void OnDragOver(object sender, DragEventArgs e) => UpdateDragOperation(e);
+
+    private void OnDragLeave(object sender, DragEventArgs e)
+    {
+        HideGhost();
+        ClearRefusedTint();
+        e.Handled = true;
+    }
+
+    private void OnDrop(object sender, DragEventArgs e)
+    {
+        try
+        {
+            var source = TryGetMediaSource(e);
+            if (source is null || Track is null || Timeline is null) return;
+            var streams = ResolveStreams(source, Track.Kind);
+            if (streams is null) return;
+
+            var framerate = Timeline.Project.Settings.Framerate;
+            var draggedDuration = ComputeDraggedDuration(source, framerate);
+            var landingFrame = LandingFrameFromCursor(e);
+            var altHeld = (e.KeyStates & DragDropKeyStates.AltKey) == DragDropKeyStates.AltKey;
+            var snapped = Timeline.Snap(landingFrame, Track, draggedDuration, altHeld);
+
+            var clip = new MediaClip
+            {
+                MediaSourceId = source.Id,
+                Source = source,
+                SourceIn = TimeSpan.Zero,
+                SourceOut = source.Duration,
+                Streams = streams.Value,
+                Framerate = framerate,
+                TimelineStart = snapped,
+            };
+
+            // Insert in TimelineStart order so the underlying collection stays sorted —
+            // makes downstream gap/edge logic (snap, overlap walk) deterministic.
+            var insertIdx = Track.Clips.Count;
+            for (var i = 0; i < Track.Clips.Count; i++)
+            {
+                if (Track.Clips[i].TimelineStart > snapped)
+                {
+                    insertIdx = i;
+                    break;
+                }
+            }
+            Track.Clips.Insert(insertIdx, clip);
+            Timeline.SelectedClip = clip;
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+        finally
+        {
+            HideGhost();
+            ClearRefusedTint();
+        }
+    }
+
+    private void UpdateDragOperation(DragEventArgs e)
+    {
+        var source = TryGetMediaSource(e);
+        if (source is null || Track is null || Timeline is null)
+        {
+            e.Effects = DragDropEffects.None;
+            HideGhost();
+            ClearRefusedTint();
+            e.Handled = true;
+            return;
+        }
+
+        var streams = ResolveStreams(source, Track.Kind);
+        if (streams is null)
+        {
+            e.Effects = DragDropEffects.None;
+            HideGhost();
+            ApplyRefusedTint();
+            e.Handled = true;
+            return;
+        }
+
+        var framerate = Timeline.Project.Settings.Framerate;
+        var draggedDuration = ComputeDraggedDuration(source, framerate);
+        var landingFrame = LandingFrameFromCursor(e);
+        var altHeld = (e.KeyStates & DragDropKeyStates.AltKey) == DragDropKeyStates.AltKey;
+        var snapped = Timeline.Snap(landingFrame, Track, draggedDuration, altHeld);
+
+        ClearRefusedTint();
+        e.Effects = DragDropEffects.Copy;
+        ShowGhost(snapped, draggedDuration, streams.Value);
+        e.Handled = true;
+    }
+
+    private int LandingFrameFromCursor(DragEventArgs e)
+    {
+        if (Timeline is null || Timeline.PixelsPerFrame <= 0) return 0;
+        var p = e.GetPosition(this);
+        return (int)Math.Round(p.X / Timeline.PixelsPerFrame);
+    }
+
+    private static MediaSource? TryGetMediaSource(DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(typeof(MediaSource)))
+        {
+            return e.Data.GetData(typeof(MediaSource)) as MediaSource;
+        }
+        return null;
+    }
+
+    //   HasVideo && HasAudio | Video → Both | Audio → Audio | Overlay → refused
+    //   HasVideo only        | Video → Video                | Overlay → refused
+    //   HasAudio only        | Audio → Audio                | Overlay → refused
+    // Missing sources refuse on every track.
+    private static ClipStreams? ResolveStreams(MediaSource source, TrackKind kind)
+    {
+        if (source.IsMissing) return null;
+        return (kind, source.HasVideo, source.HasAudio) switch
+        {
+            (TrackKind.Video, true, true) => ClipStreams.Both,
+            (TrackKind.Video, true, false) => ClipStreams.Video,
+            (TrackKind.Audio, _, true) => ClipStreams.Audio,
+            _ => null,
+        };
+    }
+
+    private static int ComputeDraggedDuration(MediaSource source, int framerate)
+    {
+        if (framerate <= 0) return 0;
+        return (int)Math.Round(source.Duration.TotalSeconds * framerate);
+    }
+
+    private void ApplyRefusedTint()
+    {
+        if (!ReferenceEquals(Background, RefusedLaneBackground))
+        {
+            Background = RefusedLaneBackground;
+        }
+    }
+
+    private void ClearRefusedTint()
+    {
+        if (!ReferenceEquals(Background, DefaultLaneBackground))
+        {
+            Background = DefaultLaneBackground;
+        }
+    }
+
+    private void ShowGhost(int frame, int durationFrames, ClipStreams streams)
+    {
+        if (Timeline is null) return;
+        var layer = AdornerLayer.GetAdornerLayer(this);
+        if (layer is null) return;
+
+        if (_ghostAdorner is null)
+        {
+            _ghostAdorner = new GhostClipAdorner(this);
+            layer.Add(_ghostAdorner);
+        }
+
+        var ppf = Timeline.PixelsPerFrame;
+        var x = frame * ppf;
+        var width = Math.Max(MinClipWidth, durationFrames * ppf);
+        var y = ClipVerticalPadding;
+        var height = Math.Max(0, TrackHeight - (ClipVerticalPadding * 2));
+        _ghostAdorner.UpdateRect(new Rect(x, y, width, height), streams);
+    }
+
+    private void HideGhost()
+    {
+        if (_ghostAdorner is null) return;
+        var layer = AdornerLayer.GetAdornerLayer(this);
+        layer?.Remove(_ghostAdorner);
+        _ghostAdorner = null;
+    }
+}
+
+/// <summary>
+/// Translucent placeholder rectangle painted on the lane's <see cref="AdornerLayer"/>
+/// during a media-bin drag. Lives on the lane (not the window) so its frame coordinates
+/// share <see cref="ClipsLaneView"/>'s local space — the lane just tells it where the
+/// snapped clip would land. Hit-test-transparent so it never intercepts the drag.
+/// </summary>
+internal sealed class GhostClipAdorner : Adorner
+{
+    private Rect _rect;
+    private Brush _fill;
+
+    public GhostClipAdorner(UIElement adornedElement) : base(adornedElement)
+    {
+        IsHitTestVisible = false;
+        _fill = BuildFill(ClipStreams.Both);
+    }
+
+    public void UpdateRect(Rect rect, ClipStreams streams)
+    {
+        _rect = rect;
+        _fill = BuildFill(streams);
+        InvalidateVisual();
+    }
+
+    protected override void OnRender(DrawingContext dc)
+    {
+        if (_rect.Width <= 0 || _rect.Height <= 0) return;
+        dc.DrawRectangle(_fill, null, _rect);
+    }
+
+    // 40% opacity over the same colour family ClipView paints the final MediaClip in
+    // (MediaClipFill #1F4F7A). The audio-track ghost gets a slightly cooler tint so the
+    // split-stream case stays visually distinct from a Video-track drop.
+    private static Brush BuildFill(ClipStreams streams)
+    {
+        var color = streams switch
+        {
+            ClipStreams.Audio => Color.FromArgb(0x66, 0x2C, 0x6A, 0x6A),
+            _ => Color.FromArgb(0x66, 0x1F, 0x4F, 0x7A),
+        };
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 }
