@@ -30,8 +30,20 @@ Mutable project-level settings: `Framerate`, `Resolution` (the canonical composi
 _Avoid_: "project config".
 
 **Track**:
-An ordered horizontal lane on the timeline that contains `Clip`s. Has a `TrackKind` (`Video` / `Audio` / `Overlay`) used by the UI to constrain which clips can be dropped. The compositor does not branch on `TrackKind` — it branches on clip type.
+An ordered horizontal lane on the timeline that contains `Clip`s. Has a `TrackKind` (`Video` / `Audio` / `Overlay`) used by the UI to constrain which clips can be dropped. The compositor does not branch on `TrackKind` — it branches on clip type. Carries three flags — `Muted`, `Locked`, `Disabled` — defined below.
 _Avoid_: "layer", "row", "channel".
+
+**Muted (track flag)**:
+Audio-only mute. An `Audio` track with `Muted=true` contributes zero samples to the audio mix. Video output is unaffected. The M button is shown only on Audio track headers (hidden on Video/Overlay) because Video-track audio control is done by splitting the clip first. To silence a `Streams=Both` clip's audio, use the per-clip **Split audio** command to produce an Audio track, then mute that.
+_Avoid_: applying "mute" to video (use `Disabled` for video skip).
+
+**Locked (track flag)**:
+The editor refuses edits to clips on a locked track (move, trim, split, delete are all no-ops). Compositor is unaffected. The L button is shown on all track kinds.
+_Avoid_: "frozen", "read-only" (Locked is the canonical term here, matching Premiere/Resolve).
+
+**Disabled (track flag)**:
+Track is fully skipped by the compositor — no video output, no audio contribution (including any `Streams=Both` clip's audio). The track row stays at full height in the timeline UI but renders with a ghost effect (reduced opacity + desaturation) so it's always clickable to re-enable in place. The D button is shown on all track kinds.
+_Avoid_: "hidden" (the row is not hidden; it is ghosted), "invisible".
 
 **Clip**:
 The unit of content on a `Track`, occupying a half-open interval `[TimelineStart, TimelineStart+Duration)` in project time. Abstract base; concrete types are `MediaClip` and `GraphicsClip`. Clips on the same track do not overlap.
@@ -60,6 +72,24 @@ _Avoid_: using bare "time" when which one matters.
 **Frame**:
 The canonical unit of `TimelineTime`. All clip positions and durations are integer frame counts at the project's `Framerate`. Sub-frame audio offsets use samples, not fractional frames.
 _Avoid_: "second" or `double`-seconds as a storage unit.
+
+### Video editor rendering
+
+**Compositor**:
+The render engine that produces a composited frame and an audio mix at a given `TimelineTime`, gathering inputs from all `Track`s. Pure-ish input/output: `(Project, frame) → (frame image, audio buffer)`. Owns an internal decoder cache keyed by `Clip.Id`. Implementation choice (`SkiaCompositor` today, `Direct2DCompositor`/`Dx11Compositor` in the future) is encapsulated behind an `ICompositor` seam. See [ADR 0004](adr/0004-compositor-design.md).
+_Avoid_: "renderer" (overloaded with `DrawingItem.Render`), "mixer" (the audio half only).
+
+**CompositionLayer**:
+The unit of work a `Compositor` consumes per frame — one entry per visible `Clip` at `TimelineTime` T, carrying its z-order, source-time mapping (speed-aware), and `Transform2D`. Produced by `CompositionPlanner`. Backend-agnostic; every `ICompositor` implementation walks the same layer list and only the paint step varies.
+_Avoid_: "render layer" (no concept of nested layers in the model).
+
+**CompositedFrame**:
+The compositor's per-frame output. Wraps a frozen `WriteableBitmap` at project resolution plus the frame number it covers. Backend-neutral — GPU implementations produce the same surface via readback.
+_Avoid_: "rendered frame" (collides with raw decoded frames from a `MediaDecoder`).
+
+**Media decoder**:
+Per-source primitive that produces raw video frames or audio samples from a single source file at a given `SourceTime`. Pull-shaped (synchronous `GetVideoFrameAt(t)` / `GetAudioSamplesAt(t, n)`), no playback clock. Distinct from `IVideoPlayer`, which is push-shaped and owns its own clock for the snip editor's video playback. Lives in `Flicksy.Drawing/Media/` so it's available to both surfaces; the eventual unification of PostSnip's playback onto `IMediaDecoder` is tracked in issue #23.
+_Avoid_: bare "decoder" without "media" prefix, "player" (that's `IVideoPlayer`'s shape).
 
 ### Shared primitives (snip + video editor)
 
