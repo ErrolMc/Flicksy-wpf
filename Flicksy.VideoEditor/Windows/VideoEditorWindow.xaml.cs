@@ -83,6 +83,14 @@ public partial class VideoEditorWindow : Window
         ViewModel.MediaBin.RefreshMissingState();
     }
 
+    // Tear down compositor + decoder cache when the window closes. The VM owns the
+    // compositor; window close is the natural disposal point per WPF lifetime semantics.
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        ViewModel.Dispose();
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)

@@ -20,6 +20,18 @@ public partial class Track : ObservableObject
     [ObservableProperty]
     private string name = string.Empty;
 
+    /// <summary>Excluded from the audio mix when true. UI hides the M toggle on Overlay headers (those tracks never carry audio); Video tracks keep it because their clips may have <c>Streams=Both</c>.</summary>
+    [ObservableProperty]
+    private bool muted;
+
+    /// <summary>Editor refuses edits to clips on this track. Compositor unaffected.</summary>
+    [ObservableProperty]
+    private bool locked;
+
+    /// <summary>Compositor skips the track entirely; the row ghosts in the timeline UI.</summary>
+    [ObservableProperty]
+    private bool disabled;
+
     public ObservableCollection<Clip> Clips { get; } = new();
 
     public List<Transition> Transitions { get; } = new();

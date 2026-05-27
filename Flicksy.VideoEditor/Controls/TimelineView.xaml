@@ -89,7 +89,17 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <timeline:ClipsLaneView Track="{Binding}"
-                                                        Timeline="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" />
+                                                        Timeline="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}">
+                                    <timeline:ClipsLaneView.Style>
+                                        <Style TargetType="{x:Type timeline:ClipsLaneView}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Disabled}" Value="True">
+                                                    <Setter Property="Opacity" Value="0.35" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </timeline:ClipsLaneView.Style>
+                                </timeline:ClipsLaneView>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

@@ -16,7 +16,7 @@ namespace Flicksy.VideoEditor.ViewModels;
 /// </summary>
 public partial class TimelineViewModel : ObservableObject
 {
-    public const double MinPixelsPerFrame = 0.25;
+    public const double MinPixelsPerFrame = 0.025;
     public const double MaxPixelsPerFrame = 60.0;
 
     // Snap pull radius in screen pixels, applied to the dragged clip's start edge against

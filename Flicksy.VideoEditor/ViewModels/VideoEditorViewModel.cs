@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Flicksy.VideoEditor.Composition;
 using Flicksy.VideoEditor.Project;
 
 namespace Flicksy.VideoEditor.ViewModels;
@@ -14,8 +16,11 @@ namespace Flicksy.VideoEditor.ViewModels;
 /// this slice; they exist so the shell's <c>Ctrl+Z</c>/<c>Ctrl+Y</c> input bindings have
 /// something to invoke until the timeline-edit undo stack lands in #12.
 /// </summary>
-public partial class VideoEditorViewModel : ObservableObject
+public partial class VideoEditorViewModel : ObservableObject, IDisposable
 {
+    private readonly ICompositor _compositor;
+    private bool _disposed;
+
     [ObservableProperty]
     private string projectName = "Untitled Project";
 
@@ -38,8 +43,11 @@ public partial class VideoEditorViewModel : ObservableObject
     public VideoEditorViewModel(Project.Project project)
     {
         Project = project;
-        Preview = new PreviewViewModel(project);
+        // One compositor per editor window. Decoder cache + Skia state live for the
+        // lifetime of the project; Dispose tears them down when the window closes.
+        _compositor = new SkiaCompositor();
         Transport = new TransportViewModel(project);
+        Preview = new PreviewViewModel(project, Transport, _compositor);
         Timeline = new TimelineViewModel(project, Transport);
         Inspector = new InspectorViewModel();
         MediaBin = new MediaBinViewModel(project);
@@ -116,5 +124,12 @@ public partial class VideoEditorViewModel : ObservableObject
     private void Export()
     {
         // No-op in this slice. Real exporter lands in #20.
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _compositor.Dispose();
     }
 }

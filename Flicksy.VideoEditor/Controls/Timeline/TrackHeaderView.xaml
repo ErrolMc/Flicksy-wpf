@@ -9,7 +9,7 @@
         <SolidColorBrush x:Key="HeaderTextBrush" Color="#E0E0E0" />
         <SolidColorBrush x:Key="HeaderMutedBrush" Color="#888888" />
 
-        <Style x:Key="TrackToggleStyle" TargetType="ToggleButton" xmlns:tb="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework">
+        <Style x:Key="TrackToggleStyle" TargetType="ToggleButton">
             <Setter Property="Width" Value="20" />
             <Setter Property="Height" Value="18" />
             <Setter Property="Margin" Value="2,0" />
@@ -45,11 +45,31 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Mute affects the audio mix only. Overlay tracks refuse media drops so they
+             never carry audio — hide the M toggle there. Video tracks may host MediaClips
+             with Streams=Both, so they keep the toggle. -->
+        <Style x:Key="MuteToggleStyle" TargetType="ToggleButton" BasedOn="{StaticResource TrackToggleStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="Overlay">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Border BorderBrush="{StaticResource HeaderBorderBrush}"
             BorderThickness="0,0,1,1"
             Padding="8,4">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Disabled}" Value="True">
+                        <Setter Property="Opacity" Value="0.35" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
@@ -64,23 +84,23 @@
                        VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" />
 
-            <!-- Mute/Lock/Disable stubs. No bound state yet — pure visual toggles until
-                 per-track flags + the compositor land (see issue #10 comment thread for
-                 the design discussion on Track.{Muted,Locked,Disabled}). -->
             <StackPanel Grid.Row="1"
                         Orientation="Horizontal"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Bottom"
                         Margin="0,4,0,0">
-                <ToggleButton Style="{StaticResource TrackToggleStyle}"
+                <ToggleButton Style="{StaticResource MuteToggleStyle}"
+                              IsChecked="{Binding Muted, Mode=TwoWay}"
                               Content="M"
-                              ToolTip="Mute (stub)" />
+                              ToolTip="Mute audio" />
                 <ToggleButton Style="{StaticResource TrackToggleStyle}"
+                              IsChecked="{Binding Locked, Mode=TwoWay}"
                               Content="L"
-                              ToolTip="Lock (stub)" />
+                              ToolTip="Lock — refuse edits to clips on this track" />
                 <ToggleButton Style="{StaticResource TrackToggleStyle}"
+                              IsChecked="{Binding Disabled, Mode=TwoWay}"
                               Content="D"
-                              ToolTip="Disable / hide track (stub)" />
+                              ToolTip="Disable — skip in compositor and ghost the row" />
             </StackPanel>
         </Grid>
     </Border>
