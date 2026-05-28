@@ -83,8 +83,8 @@ _Avoid_: "renderer" (overloaded with `DrawingItem.Render`), "mixer" (the audio h
 The unit of work a `Compositor` consumes per frame — one entry per visible `Clip` at `TimelineTime` T, carrying its z-order, source-time mapping (speed-aware), and `Transform2D`. Produced by `CompositionPlanner`. Backend-agnostic; every `ICompositor` implementation walks the same layer list and only the paint step varies.
 _Avoid_: "render layer" (no concept of nested layers in the model).
 
-**CompositedFrame**:
-The compositor's per-frame output. Wraps a frozen `WriteableBitmap` at project resolution plus the frame number it covers. Backend-neutral — GPU implementations produce the same surface via readback.
+**Composited frame**:
+The compositor's per-frame visual output — the pixels painted into the caller-owned `WriteableBitmap` at project resolution (not a distinct type; the caller owns and reuses one bitmap, see [ADR 0004](adr/0004-compositor-design.md)). Backend-neutral — GPU implementations produce the same surface via readback.
 _Avoid_: "rendered frame" (collides with raw decoded frames from a `MediaDecoder`).
 
 **Media decoder**:

@@ -19,11 +19,13 @@ namespace Flicksy.VideoEditor.Composition;
 /// class only owns paint dispatch, the decoder cache, and the audio mix.
 /// <para>
 /// Threading: per <see cref="ICompositor"/>, calls are single-call-in-flight on one
-/// thread at a time. The class is not thread-safe across concurrent callers.
-/// <see cref="RenderFrame"/> may run off the UI thread for media-only projects;
-/// projects with <see cref="GraphicsClip"/>s currently require the UI thread because
-/// <see cref="RenderTargetBitmap"/> needs a Dispatcher. Step 11 will revisit this if
-/// off-UI-thread playback demands it.
+/// thread at a time; the class is not thread-safe across concurrent callers.
+/// <see cref="RenderFrame"/> paints into the caller's unfrozen
+/// <see cref="WriteableBitmap"/>, so the compositor and whoever presents that bitmap
+/// must share a thread — the UI thread today. Two independent constraints already point
+/// the same way: the <see cref="GraphicsClip"/> path needs a Dispatcher for
+/// <see cref="RenderTargetBitmap"/>, and an unfrozen bitmap can't cross threads.
+/// Off-UI decode-ahead playback is #11's job.
 /// </para>
 /// </summary>
 public sealed class SkiaCompositor : ICompositor
@@ -31,27 +33,33 @@ public sealed class SkiaCompositor : ICompositor
     private readonly Dictionary<Guid, IMediaDecoder> _decoders = new();
     private bool _disposed;
 
-    public CompositedFrame RenderFrame(Project.Project project, int frame)
+    public void RenderFrame(Project.Project project, int frame, WriteableBitmap target)
     {
         ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(target);
         if (_disposed) throw new ObjectDisposedException(nameof(SkiaCompositor));
 
         int width = project.Settings.ResolutionWidth;
         int height = project.Settings.ResolutionHeight;
         int sampleRate = project.Settings.AudioSampleRate;
 
-        // Pbgra32 + SKAlphaType.Premul: WPF's only fully blendable format pair. Allocating
-        // fresh per call so the result can be Freeze()-d and crossed back to any caller
-        // without aliasing the next frame. Future perf work (#11) can introduce pooling
-        // via Clone()-into-unfrozen if 8 MB/frame at 1080p shows up in measurements.
-        var bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Pbgra32, null);
+        // Caller owns the bitmap and reuses it across frames (no per-frame allocation).
+        // It must be exactly project resolution: InstallPixels maps the SKImageInfo
+        // straight over the back buffer, so a size mismatch would read/write out of bounds.
+        if (target.PixelWidth != width || target.PixelHeight != height)
+        {
+            throw new ArgumentException(
+                $"Target bitmap is {target.PixelWidth}x{target.PixelHeight}; expected project resolution {width}x{height}.",
+                nameof(target));
+        }
 
-        bitmap.Lock();
+        target.Lock();
         try
         {
+            // Pbgra32 + SKAlphaType.Premul: WPF's only fully blendable format pair.
             var info = new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
             using var skBitmap = new SKBitmap();
-            skBitmap.InstallPixels(info, bitmap.BackBuffer, bitmap.BackBufferStride);
+            skBitmap.InstallPixels(info, target.BackBuffer, target.BackBufferStride);
             using var canvas = new SKCanvas(skBitmap);
 
             canvas.Clear(SKColors.Black);
@@ -66,12 +74,13 @@ public sealed class SkiaCompositor : ICompositor
         }
         finally
         {
-            bitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
-            bitmap.Unlock();
+            // AddDirtyRect + Unlock raises WriteableBitmap's own invalidation, so the bound
+            // Image repaints in place — the caller need not reassign its source each frame.
+            // The bitmap stays unfrozen (it's reused), so presentation must be same-thread
+            // per the ADR 0004 contract.
+            target.AddDirtyRect(new Int32Rect(0, 0, width, height));
+            target.Unlock();
         }
-
-        bitmap.Freeze();
-        return new CompositedFrame(bitmap);
     }
 
     public AudioBuffer RenderAudio(Project.Project project, int frame)

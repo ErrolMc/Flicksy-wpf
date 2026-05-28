@@ -9,12 +9,12 @@ The video editor's compositor is a stateful object that produces a composited fr
 ```csharp
 public interface ICompositor : IDisposable
 {
-    CompositedFrame RenderFrame(Project project, int frame);
+    void RenderFrame(Project project, int frame, WriteableBitmap target);
     AudioBuffer RenderAudio(Project project, int frame);
 }
 ```
 
-`CompositedFrame.Image` is a frozen `WriteableBitmap` at `ProjectSettings.{ResolutionWidth, ResolutionHeight}`. `AudioBuffer.Samples` is `float[]` interleaved stereo at `ProjectSettings.AudioSampleRate`, one video frame's worth of samples per call (`SampleRate / Framerate` samples per channel).
+`RenderFrame` paints into a caller-owned `WriteableBitmap` sized to `ProjectSettings.{ResolutionWidth, ResolutionHeight}`; the caller reuses one bitmap across frames so the compositor allocates no per-frame surface. The bitmap is left unfrozen (it's reused), so the compositor and the consumer that presents it share one thread (the UI thread today). `AudioBuffer.Samples` is `float[]` interleaved stereo at `ProjectSettings.AudioSampleRate`, one video frame's worth of samples per call (`SampleRate / Framerate` samples per channel).
 
 **Compute backend.** SkiaSharp. CPU backend in scaffolding, GPU backend deferred to a follow-up issue when filters/transitions demand it. The choice is encapsulated inside `SkiaCompositor`; the `ICompositor` seam is backend-neutral so future `Direct2DCompositor` / `Dx11Compositor` implementations can replace it without touching callers.
 
@@ -38,7 +38,7 @@ public interface ICompositor : IDisposable
 
 A disabled track's row stays at full height in the timeline but renders with a ghost effect (reduced opacity + desaturation) so it can always be re-enabled in place.
 
-**Threading.** `RenderFrame` / `RenderAudio` are synchronous, callable from any thread, single-call-in-flight (no internal locking). The compositor produces frozen `WriteableBitmap`s so results can cross threads without marshalling. The real threading pipeline (decode-ahead, scrub coalescing, audio chunking) is owned by #11.
+**Threading.** `RenderFrame` / `RenderAudio` are synchronous and single-call-in-flight (no internal locking). `RenderFrame` paints into the caller's reusable, unfrozen `WriteableBitmap`, so the compositor and whoever presents that bitmap must share one thread (the UI thread today); the `GraphicsClip` path independently needs a Dispatcher for the same reason. The real threading pipeline (decode-ahead, scrub coalescing, audio chunking, and any cross-thread buffer hand-off such as ping-pong bitmaps) is owned by #11.
 
 **Scope of this slice.** Design + one working `RenderFrame` path. In scope:
 
@@ -48,7 +48,7 @@ A disabled track's row stays at full height in the timeline but renders with a g
 - Z-order across tracks (Overlay above Video)
 - Speed-aware `TimelineTime → SourceTime` mapping
 - `Track.{Muted, Locked, Disabled}` model fields + UI bindings on `TrackHeaderView`
-- Preview-driven demo: `PreviewViewModel` subscribes to `TransportViewModel.Playhead`, calls `RenderFrame` on UI thread, assigns result to `PreviewView`'s `Image.Source`
+- Preview-driven demo: `PreviewViewModel` owns a reusable `WriteableBitmap`, subscribes to `TransportViewModel.Playhead`, and calls `RenderFrame` on the UI thread to repaint it in place; `PreviewView`'s `<Image>` binds to it via `CurrentFrame`
 
 Out of scope (each is its own issue):
 
@@ -109,7 +109,8 @@ Out of scope (each is its own issue):
 ### `ICompositor` API shape
 
 - **Caller-supplied `SKCanvas`.** Rejected. Couples every caller to SkiaSharp at the public seam, defeating the backend-swap goal. Callers would need a Skia-shaped canvas argument that a future `Direct2DCompositor` couldn't supply.
-- **`Render(project, frame) → (CompositedFrame, AudioBuffer)` single call.** Rejected. Bundles unrelated lifecycles — playback wants audio in larger chunks than one video frame's worth for smooth output; scrubbing wants frames without audio; export wants both per-frame. Two calls let each caller compose what it needs.
+- **`Render(project, frame) → (frame, AudioBuffer)` single call.** Rejected. Bundles unrelated lifecycles — playback wants audio in larger chunks than one video frame's worth for smooth output; scrubbing wants frames without audio; export wants both per-frame. Two calls let each caller compose what it needs.
+- **Compositor allocates + freezes a fresh `WriteableBitmap` per `RenderFrame`.** Rejected on the perf pass. A frozen bitmap is trivially cross-thread safe, but a fresh ~8 MB allocation per frame at 1080p is ~240 MB/s of GC pressure under sustained playback. The caller now owns and reuses one bitmap (`RenderFrame(project, frame, target)`); the trade is that a reused bitmap can't be frozen, so presentation is same-thread — acceptable because the `GraphicsClip` path already pins `RenderFrame` to the UI thread, and #11 owns any cross-thread (ping-pong) story.
 
 ### Mute semantics
 
@@ -127,13 +128,13 @@ Out of scope (each is its own issue):
 
 ## Consequences
 
-- **New folder `Flicksy.VideoEditor/Composition/`** contains `ICompositor`, `SkiaCompositor`, `CompositionPlanner`, `CompositionLayer`, `CompositedFrame`, `AudioBuffer`. SkiaSharp dependency added to `Flicksy.VideoEditor.csproj` (`SkiaSharp` + `SkiaSharp.Views.WPF`).
+- **New folder `Flicksy.VideoEditor/Composition/`** contains `ICompositor`, `SkiaCompositor`, `CompositionPlanner`, `CompositionLayer`, `AudioBuffer`. SkiaSharp dependency added to `Flicksy.VideoEditor.csproj` (`SkiaSharp` only — the compositor renders offscreen into a `WriteableBitmap`, so `SkiaSharp.Views.WPF`/`SKElement` hosting is not needed).
 
 - **New files in `Flicksy.Drawing/Media/`**: `IMediaDecoder.cs`, `FFmpegMediaDecoder.cs`. `IVideoPlayer` and `FFmpegVideoPlayer` are untouched.
 
 - **`Track` gains three observable fields** (`Muted`, `Locked`, `Disabled`). All three serialize to JSON. `TrackHeaderView`'s existing stub `ToggleButton`s bind to them; the M button gets a `Visibility` converter on `Track.Kind == TrackKind.Audio`. `ClipsLaneView` and the track row container apply opacity/desaturation when `Track.Disabled` is true.
 
-- **`PreviewViewModel` gains a `CurrentFrame` property** (a `WriteableBitmap`) and subscribes to `TransportViewModel.Playhead` changes. `PreviewView.xaml` swaps its placeholder `DrawingImage` for `<Image Source="{Binding CurrentFrame}" Stretch="Uniform"/>`.
+- **`PreviewViewModel` gains a `CurrentFrame` property** (an `ImageSource` backed by a `WriteableBitmap` it owns and reuses across frames, reallocated only on a resolution change) and subscribes to `TransportViewModel.Playhead` changes. `PreviewView.xaml` swaps its placeholder `DrawingImage` for `<Image Source="{Binding CurrentFrame}" Stretch="Uniform"/>`.
 
 - **`MediaClip.Duration`'s speed-mapping is consumed for the first time.** Bugs in `(SourceOut - SourceIn) / Speed * Framerate` math will surface as wrong-frame composites. `CompositionPlanner` unit tests should cover speed mapping explicitly.
 
